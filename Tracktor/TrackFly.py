@@ -19,7 +19,6 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
         path = dirpath
         source = os.path.splitext(filename)[0]
-
         #path = "/mnt/lab_server/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Ctrl_Agar/Starved_noWater_BlOrOr/220506/105843_s0a0_p6-0/"
         #source = "Ctrl_Agar_Starved_noWater_BlOrOr_p6-0_80fps"
 
@@ -30,25 +29,21 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
         os.system(  # Ffmpeg +
             "ffmpeg -hide_banner -loglevel error -i "
-            + path
-            + "/"
-            + source
+            + os.path.join(path, source)
             + ".mp4 -ss "
             + startpoint
             + " -to "
             + finishpoint
             + " -c copy "
-            + path
-            + "/"
-            + source
+            + os.path.join(path, source)
             + "_Trimmed.mp4"
         )
 
         video = source + "_Trimmed"
 
-        input_vidpath = path + video + ".mp4"
-        output_vidpath = path + video + "_tracked.mp4"
-        output_filepath = path + video + "_tracked.csv"
+        input_vidpath = os.path.join(path, video) + ".mp4"
+        output_vidpath = os.path.join(path, video) + "_tracked.mp4"
+        output_filepath = os.path.join(path, video) + "_tracked.csv"
         codec = "mp4v"
         # try other codecs if the default doesn't work ('DIVX', 'avc1', 'XVID') note: this list is non-exhaustive
 
@@ -108,7 +103,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         fourcc = cv2.VideoWriter_fourcc(*codec)
         # Create a Video writer with the desired parameters
         Background_Generator = cv2.VideoWriter(
-            filename=path + "Background_Generator.mp4",
+            filename=path + "/Background_Generator.mp4",
             fourcc=fourcc,
             fps=80,
             frameSize=BG_framesize,
@@ -164,7 +159,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
             if this == Frame:
 
-                cv2.imwrite(path + "Background.jpg", bg)
+                cv2.imwrite(path + "/Background.jpg", bg)
                 break
 
             k = cv2.waitKey(30) & 0xFF
@@ -175,8 +170,8 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         cv2.destroyAllWindows()
         cv2.waitKey(1)
 
-        Background = cv2.imread(path + "Background.jpg")
-        os.remove(path + "Background_Generator.mp4")
+        Background = cv2.imread(path + "/Background.jpg")
+        os.remove(path + "/Background_Generator.mp4")
 
         ## Open video
         cap = cv2.VideoCapture(input_vidpath)
@@ -207,7 +202,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         last = 0
         df = []
 
-        Background = cv2.imread(path + "Background.jpg")
+        Background = cv2.imread(path + "/Background.jpg")
 
         while True:
             # Capture frame-by-frame
