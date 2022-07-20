@@ -9,7 +9,7 @@ import random
 # Specify where to look for shell ffmpeg
 #Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
 
-DataPath = "/mnt/lab_server/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Trained/Starved_Water_Agar/"
+DataPath = "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Trained/Starved_Water_Agar/"
 
 for dirpath, dirnames, filenames in os.walk(DataPath):
     #if 'Results' in dirnames:
@@ -29,8 +29,9 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         finishpoint = "00:10:00"  # Finish point is the last timepoint of the video
 
         os.system(  # Ffmpeg +
-            "ffmpeg -i "
+            "ffmpeg -hide_banner -loglevel error -i "
             + path
+            + "/"
             + source
             + ".mp4 -ss "
             + startpoint
@@ -38,6 +39,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
             + finishpoint
             + " -c copy "
             + path
+            + "/"
             + source
             + "_Trimmed.mp4"
         )
