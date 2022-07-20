@@ -132,7 +132,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
         # Adjust using live rendering to get a clean background image. Default : 500
 
-        cap = cv2.VideoCapture(path + "Background_Generator.mp4")
+        cap = cv2.VideoCapture(path + "/Background_Generator.mp4")
 
         target = 0
         cap.set(
