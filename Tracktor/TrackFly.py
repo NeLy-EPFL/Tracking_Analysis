@@ -9,7 +9,7 @@ import random
 # Specify where to look for shell ffmpeg
 #Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
 
-DataPath = "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Trained/Starved_Water_Agar/"
+DataPath = "/mnt/lab_server/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Trained/Starved_Water_Agar/"
 
 for dirpath, dirnames, filenames in os.walk(DataPath):
     #if 'Results' in dirnames:
