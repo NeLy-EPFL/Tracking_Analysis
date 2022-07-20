@@ -9,7 +9,15 @@
           <option name="fileUrl" value="file://$PROJECT_DIR$/README.md" />
         </OpenedFileInfo>
         <OpenedFileInfo>
-          <option name="caretOffset" value="415" />
+          <option name="caretOffset" value="201" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/Testbook.ipynb" />
+        </OpenedFileInfo>
+        <OpenedFileInfo>
+          <option name="caretOffset" value="144" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/Fly_small.ipynb" />
+        </OpenedFileInfo>
+        <OpenedFileInfo>
+          <option name="caretOffset" value="638" />
           <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/TrackFly.py" />
         </OpenedFileInfo>
       </list>
