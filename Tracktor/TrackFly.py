@@ -14,7 +14,7 @@ DataPath = "/mnt/lab_server/DURRIEU_Matthias/Experimental_data/Optogenetics/Opto
 for dirpath, dirnames, filenames in os.walk(DataPath):
     #if 'Results' in dirnames:
     #    dirnames.remove('Results')
-    for filename in [f for f in filenames if f.endswith(".mp4")]:
+    for filename in [f for f in filenames if f.endswith(".mp4") and "Trimmed" not in f]:
         print (os.path.join(dirpath, filename))
 
         path = dirpath
