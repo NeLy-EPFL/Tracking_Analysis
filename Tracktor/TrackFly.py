@@ -7,10 +7,10 @@ import os
 import random
 
 # Specify where to look for shell ffmpeg
-Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
+#Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
 
-path = "/Volumes/Universal_HD/VideoAnalysis/GatedArenas_Agar/220715/Trained_Agar/103201_s0a0_p0-0/"
-source = "Trained_Agar_Starved_noWater_p0-0_80fps"
+path = "/mnt/lab_server/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/Ctrl_Agar/Starved_noWater_BlOrOr/220506/105843_s0a0_p6-0/"
+source = "Ctrl_Agar_Starved_noWater_BlOrOr_p6-0_80fps"
 
 # Here are the arguments to set in order to trim out the part where the arena is opened initially.
 
@@ -144,9 +144,9 @@ while 1:
 
     bg = fgbg5.getBackgroundImage()
 
-    cv2.imshow("Original", img)
-    cv2.imshow("GSOC", fgmask5)
-    cv2.imshow("background", bg)
+    #cv2.imshow("Original", img)
+    #cv2.imshow("GSOC", fgmask5)
+    #cv2.imshow("background", bg)
     subtracted = cv2.absdiff(img, bg)
 
     if this == Frame:
@@ -225,7 +225,7 @@ while True:
 
         # Display the resulting frame
         out.write(final)
-        cv2.imshow("frame", final)
+        #cv2.imshow("frame", final)
         #cv2.imshow("subtracted", subtracted)
         if (
             cv2.waitKey(1) == 27
