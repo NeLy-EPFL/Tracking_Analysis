@@ -29,8 +29,9 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         finishpoint = "00:10:00"  # Finish point is the last timepoint of the video
 
         os.system(  # Ffmpeg +
-            "ffmpeg -i "
+            "ffmpeg -hide_banner -loglevel error -i "
             + path
+            + "/"
             + source
             + ".mp4 -ss "
             + startpoint
@@ -38,6 +39,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
             + finishpoint
             + " -c copy "
             + path
+            + "/"
             + source
             + "_Trimmed.mp4"
         )
