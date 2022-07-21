@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (TrackingAnalysis)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (Main)" project-jdk-type="Python SDK" />
   <component name="UnattendedHostPersistenceState">
     <option name="openedFilesInfos">
       <list>
@@ -9,7 +9,7 @@
           <option name="fileUrl" value="file://$PROJECT_DIR$/README.md" />
         </OpenedFileInfo>
         <OpenedFileInfo>
-          <option name="caretOffset" value="201" />
+          <option name="caretOffset" value="246" />
           <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/Testbook.ipynb" />
         </OpenedFileInfo>
         <OpenedFileInfo>
@@ -17,7 +17,7 @@
           <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/Fly_small.ipynb" />
         </OpenedFileInfo>
         <OpenedFileInfo>
-          <option name="caretOffset" value="638" />
+          <option name="caretOffset" value="608" />
           <option name="fileUrl" value="file://$PROJECT_DIR$/Tracktor/TrackFly.py" />
         </OpenedFileInfo>
       </list>
