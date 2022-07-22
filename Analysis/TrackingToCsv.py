@@ -57,8 +57,8 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
         timer = 0
 
-        for ypos in df.pos_y[(df.pos_x < 350) & df.pos_x > 200]:
-            if (ypos < 500 and ypos > 300) in df.pos_y:
+        for ypos in df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)]:
+            if (ypos < 500 and ypos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
@@ -82,7 +82,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         timer = 0
 
         for ypos in df.pos_y[(df.pos_x > 500) & (df.pos_x < 650)]:
-            if (ypos < 500 and ypos > 300) in df.pos_y:
+            if (ypos < 500 and ypos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
@@ -106,7 +106,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         timer = 0
 
         for xpos in df.pos_x[(df.pos_y < 350) & (df.pos_y > 200)]:
-            if (xpos < 500 and xpos > 300) in df.pos_x:
+            if (xpos < 500 and xpos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
@@ -129,7 +129,7 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                 "Training": "Trained" if ("Trained" in dirpath) else "Ctrl",
                 "Starvation": "Overnight no Water"
                 if ("noWater" in dirpath)
-                else "Overnight with Water",
+                else "Not starved",
                 "Reinforced_side": "Right"
                 if ("RightRew" in dirpath)
                 else "Left"
