@@ -41,16 +41,20 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         RelTimeRight = Right / len(X)
         RelTimeFarRight = FarRight / len(X)
 
-        VisitsLeft_gate = []
+        VisitsLeft_gate = [[],
+                           []]
 
         timer = 0
 
-        for ypos in df.pos_y[df.pos_x < 250]:
+        for count, ypos in enumerate(df.pos_y[df.pos_x < 250]):
             if (ypos < 400 and ypos > 250) or (ypos < 600 and ypos > 475) in df.pos_y:
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsLeft_gate.append(timer)
+                VisitsLeft_gate[1].append(timer)
+                frame = count + 3 - timer
+                VisitsLeft_gate[0].append(frame)
+
                 timer = 0
 
         VisitsLeft_gate_Front = []
@@ -113,15 +117,19 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                 VisitsTop_gate_Front.append(timer)
                 timer = 0
 
-        Peeks_Left = sum(1 for i in VisitsLeft_gate if i > 160)
+        Times_Corner_Left = VisitsLeft_gate[0]
+        Durations_Corner_Left = VisitsLeft_gate[1]
+        Peeks_Left = sum(1 for i in Durations_Corner_Left if i > 160)
         Peeks_Right = sum(1 for i in VisitsRight_gate if i > 160)
         Peeks_Top = sum(1 for i in VisitsTop_gate if i > 160)
-        LongPeeks_Left = sum(1 for i in VisitsLeft_gate if i > 320)
+        LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 320)
         LongPeeks_Right = sum(1 for i in VisitsRight_gate if i > 320)
         LongPeeks_Top = sum(1 for i in VisitsTop_gate if i > 320)
         Face_Left = sum(1 for i in VisitsLeft_gate_Front if i > 160)
         Face_Right = sum(1 for i in VisitsRight_gate_Front if i > 160)
         Face_Top = sum(1 for i in VisitsTop_gate_Front if i > 160)
+
+
 
         Out.append(
             {
@@ -148,9 +156,11 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                 "Long Peeks Left": LongPeeks_Left,
                 "Long Peeks Right": LongPeeks_Right,
                 "Long Peeks Top": LongPeeks_Top,
+                "Visits Left Corner" : Times_Corner_Left,
+                "Durations Left Corner" : Durations_Corner_Left,
             }
         )
         Out = pd.DataFrame(Out)
         Data = Data.append(Out)
 
-Data.to_csv(DataPath + "/Results/DataSet.csv")
+Data.to_csv(DataPath + "/Results/DataSetTest.csv")
