@@ -5,6 +5,7 @@ DataPath = "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_
 Data = pd.DataFrame(
     columns=(
         "Date",
+        "Fly",
         "Training",
         "Starvation",
         "Relative Time Left",
@@ -13,6 +14,8 @@ Data = pd.DataFrame(
         "Relative Time far Right",
     )
 )
+
+FlyCount = 0
 
 for dirpath, dirnames, filenames in os.walk(DataPath):
     if "Results" in dirnames:
@@ -57,83 +60,115 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
                 timer = 0
 
-        VisitsLeft_gate_Front = []
+        VisitsLeft_gate_Front = [[],
+                                 []]
 
         timer = 0
 
-        for ypos in df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)]:
+        for count, ypos in enumerate(df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)]):
             if (ypos < 500 and ypos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsLeft_gate_Front.append(timer)
+                VisitsLeft_gate_Front[1].append(timer)
+                frame = count + 3 - timer
+                VisitsLeft_gate_Front[0].append(frame)
+
                 timer = 0
 
-        VisitsRight_gate = []
+        VisitsRight_gate = [[],
+                            []]
 
         timer = 0
 
-        for ypos in df.pos_y[df.pos_x > 575]:
+        for count, ypos in enumerate(df.pos_y[df.pos_x > 575]):
             if (ypos < 400 and ypos > 250) or (ypos < 600 and ypos > 475) in df.pos_y:
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsRight_gate.append(timer)
+                VisitsRight_gate[1].append(timer)
+                frame = count + 3 - timer
+                VisitsRight_gate[0].append(frame)
+
                 timer = 0
 
-        VisitsRight_gate_Front = []
-
+        VisitsRight_gate_Front = [[],
+                                  []]
         timer = 0
 
-        for ypos in df.pos_y[(df.pos_x > 500) & (df.pos_x < 650)]:
+        for count, ypos in enumerate(df.pos_y[(df.pos_x > 500) & (df.pos_x < 650)]):
             if (ypos < 500 and ypos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsRight_gate_Front.append(timer)
+                VisitsRight_gate_Front[1].append(timer)
+                frame = count + 3 - timer
+                VisitsRight_gate_Front[0].append(frame)
+
                 timer = 0
 
-        VisitsTop_gate = []
-
+        VisitsTop_gate = [[],
+                          []]
         timer = 0
 
-        for xpos in df.pos_x[df.pos_y < 275]:
+        for count, xpos in enumerate(df.pos_x[df.pos_y < 275]):
             if (xpos < 350 and xpos > 250) or (xpos < 600 and xpos > 500) in df.pos_x:
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsTop_gate.append(timer)
+                VisitsTop_gate[1].append(timer)
+                frame = count + 3 - timer
+                VisitsTop_gate[0].append(frame)
+
                 timer = 0
 
-        VisitsTop_gate_Front = []
-
+        VisitsTop_gate_Front = [[],
+                                []]
         timer = 0
 
-        for xpos in df.pos_x[(df.pos_y < 350) & (df.pos_y > 200)]:
+        for count, xpos in enumerate(df.pos_x[(df.pos_y < 350) & (df.pos_y > 200)]):
             if (xpos < 500 and xpos > 300):
                 timer += 1
                 # print (timer)
             elif timer != 0:
-                VisitsTop_gate_Front.append(timer)
+                VisitsTop_gate_Front[1].append(timer)
+                frame = count + 3 - timer
+                VisitsTop_gate_Front[0].append(frame)
+
                 timer = 0
 
         Times_Corner_Left = VisitsLeft_gate[0]
+        Times_Front_Left = VisitsLeft_gate_Front[0]
+        Times_Corner_Right = VisitsRight_gate[0]
+        Times_Front_Right = VisitsRight_gate_Front[0]
+        Times_Corner_Top = VisitsTop_gate[0]
+        Times_Front_Top = VisitsTop_gate_Front[0]
+
         Durations_Corner_Left = VisitsLeft_gate[1]
+        Durations_Front_Left = VisitsLeft_gate_Front[1]
+        Durations_Corner_Right = VisitsRight_gate[1]
+        Durations_Front_Right = VisitsRight_gate_Front[1]
+        Durations_Corner_Top = VisitsTop_gate[1]
+        Durations_Front_Top = VisitsTop_gate_Front[1]
+
         Peeks_Left = sum(1 for i in Durations_Corner_Left if i > 160)
-        Peeks_Right = sum(1 for i in VisitsRight_gate if i > 160)
-        Peeks_Top = sum(1 for i in VisitsTop_gate if i > 160)
+        Peeks_Right = sum(1 for i in Durations_Corner_Right if i > 160)
+        Peeks_Top = sum(1 for i in Durations_Corner_Top if i > 160)
+
         LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 320)
-        LongPeeks_Right = sum(1 for i in VisitsRight_gate if i > 320)
-        LongPeeks_Top = sum(1 for i in VisitsTop_gate if i > 320)
-        Face_Left = sum(1 for i in VisitsLeft_gate_Front if i > 160)
-        Face_Right = sum(1 for i in VisitsRight_gate_Front if i > 160)
-        Face_Top = sum(1 for i in VisitsTop_gate_Front if i > 160)
+        LongPeeks_Right = sum(1 for i in Durations_Corner_Right if i > 320)
+        LongPeeks_Top = sum(1 for i in Durations_Corner_Top if i > 320)
 
+        Face_Left = sum(1 for i in Durations_Front_Left if i > 160)
+        Face_Right = sum(1 for i in Durations_Front_Right if i > 160)
+        Face_Top = sum(1 for i in Durations_Front_Top if i > 160)
 
+        FlyCount += 1
 
         Out.append(
             {
                 "Date": "22-03-04" if ("220304" in dirpath) else "22-03-10",
+                "Fly": FlyCount,
                 "Training": "Trained" if ("Trained" in dirpath) else "Ctrl",
                 "Starvation": "Overnight no Water"
                 if ("noWater" in dirpath)
@@ -158,6 +193,16 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                 "Long Peeks Top": LongPeeks_Top,
                 "Visits Left Corner" : Times_Corner_Left,
                 "Durations Left Corner" : Durations_Corner_Left,
+                "Visits Right Corner" : Times_Corner_Right,
+                "Durations Right Corner" : Durations_Corner_Right,
+                "Visits Top Corner" : Times_Corner_Top,
+                "Durations Top Corner" : Durations_Corner_Top,
+                "Visits Left Front" : Times_Front_Left,
+                "Durations Left Front" : Durations_Front_Left,
+                "Visits Right Front" : Times_Front_Right,
+                "Durations Right Front" : Durations_Front_Right,
+                "Visits Top Front" : Times_Front_Top,
+                "Durations Top Front" : Durations_Front_Top,
             }
         )
         Out = pd.DataFrame(Out)
