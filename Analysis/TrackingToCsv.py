@@ -5,6 +5,7 @@ DataPath = "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_
 Data = pd.DataFrame(
     columns=(
         "Date",
+        "Fly",
         "Training",
         "Starvation",
         "Relative Time Left",
@@ -13,6 +14,8 @@ Data = pd.DataFrame(
         "Relative Time far Right",
     )
 )
+
+FlyCount = 0
 
 for dirpath, dirnames, filenames in os.walk(DataPath):
     if "Results" in dirnames:
@@ -160,9 +163,12 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
         Face_Right = sum(1 for i in Durations_Front_Right if i > 160)
         Face_Top = sum(1 for i in Durations_Front_Top if i > 160)
 
+        FlyCount += 1
+
         Out.append(
             {
                 "Date": "22-03-04" if ("220304" in dirpath) else "22-03-10",
+                "Fly": FlyCount,
                 "Training": "Trained" if ("Trained" in dirpath) else "Ctrl",
                 "Starvation": "Overnight no Water"
                 if ("noWater" in dirpath)
