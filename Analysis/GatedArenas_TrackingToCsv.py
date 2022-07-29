@@ -145,9 +145,9 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
             Peeks_Right = sum(1 for i in Durations_Corner_Right if i > 160)
             Peeks_Top = sum(1 for i in Durations_Corner_Top if i > 160)
 
-            LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 320)
-            LongPeeks_Right = sum(1 for i in Durations_Corner_Right if i > 320)
-            LongPeeks_Top = sum(1 for i in Durations_Corner_Top if i > 320)
+            LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 240)
+            LongPeeks_Right = sum(1 for i in Durations_Corner_Right if i > 240)
+            LongPeeks_Top = sum(1 for i in Durations_Corner_Top if i > 240)
 
             Face_Left = sum(1 for i in Durations_Front_Left if i > 160)
             Face_Right = sum(1 for i in Durations_Front_Right if i > 160)
