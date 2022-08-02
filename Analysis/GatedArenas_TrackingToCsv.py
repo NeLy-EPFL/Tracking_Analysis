@@ -39,14 +39,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
             timer = 0
 
-            for count, ypos in enumerate(df.pos_y[df.pos_x < 250]):
+            for frame, ypos in df.pos_y[df.pos_x < 250].iteritems():
                 if (ypos < 400 and ypos > 250) or (ypos < 600 and ypos > 475) in df.pos_y:
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsLeft_gate[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsLeft_gate[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsLeft_gate[0].append(timestamp)
 
                     timer = 0
 
@@ -55,14 +55,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
             timer = 0
 
-            for count, ypos in enumerate(df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)]):
+            for frame, ypos in df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)].iteritems():
                 if (ypos < 500 and ypos > 300):
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsLeft_gate_Front[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsLeft_gate_Front[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsLeft_gate_Front[0].append(timestamp)
 
                     timer = 0
 
@@ -71,14 +71,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
 
             timer = 0
 
-            for count, ypos in enumerate(df.pos_y[df.pos_x > 575]):
+            for frame, ypos in df.pos_y[df.pos_x > 575].iteritems():
                 if (ypos < 400 and ypos > 250) or (ypos < 600 and ypos > 475) in df.pos_y:
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsRight_gate[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsRight_gate[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsRight_gate[0].append(timestamp)
 
                     timer = 0
 
@@ -86,14 +86,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                                       []]
             timer = 0
 
-            for count, ypos in enumerate(df.pos_y[(df.pos_x > 500) & (df.pos_x < 650)]):
+            for frame, ypos in df.pos_y[(df.pos_x > 500) & (df.pos_x < 650)].iteritems():
                 if (ypos < 500 and ypos > 300):
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsRight_gate_Front[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsRight_gate_Front[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsRight_gate_Front[0].append(timestamp)
 
                     timer = 0
 
@@ -101,14 +101,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                               []]
             timer = 0
 
-            for count, xpos in enumerate(df.pos_x[df.pos_y < 275]):
+            for frame, xpos in df.pos_x[df.pos_y < 275].iteritems():
                 if (xpos < 350 and xpos > 250) or (xpos < 600 and xpos > 500) in df.pos_x:
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsTop_gate[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsTop_gate[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsTop_gate[0].append(timestamp)
 
                     timer = 0
 
@@ -116,14 +116,14 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                                     []]
             timer = 0
 
-            for count, xpos in enumerate(df.pos_x[(df.pos_y < 350) & (df.pos_y > 200)]):
+            for frame, xpos in df.pos_x[(df.pos_y < 350) & (df.pos_y > 200)].iteritems():
                 if (xpos < 500 and xpos > 300):
                     timer += 1
                     # print (timer)
                 elif timer != 0:
                     VisitsTop_gate_Front[1].append(timer)
-                    frame = count + 3 - timer
-                    VisitsTop_gate_Front[0].append(frame)
+                    timestamp = frame - timer
+                    VisitsTop_gate_Front[0].append(timestamp)
 
                     timer = 0
 
