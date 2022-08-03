@@ -6,7 +6,15 @@ import bokeh.layouts
 import bokeh.models
 import bokeh.plotting
 
+from bokeh.palettes import Category10
+import itertools
+
+colors = itertools.cycle(Category10[10])
+def color_gen():
+    yield from itertools.cycle(Category10[10])
+color = color_gen()
 # Read in data
+
 TimeData = pd.read_csv(
     "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetNew.csv"
 )
@@ -178,15 +186,17 @@ source.data["color"] = ["#1f77b3"] * len(ReinforcedVisit)
 
 # Make the plot
 p = bokeh.plotting.figure(
-    frame_height=250,
-    frame_width=250,
+    frame_height=600,
+    frame_width=600,
     x_axis_label=x_selector.value,
     y_axis_label=y_selector.value,
-    legend_group=colorby_selector.value
+    #legend_group=colorby_selector.value
 )
 
 # Populate glyphs
-circle = p.circle(source=source, x="x", y="y", color="color", legend="legend")
+circle = p.circle(source=source, x="x", y="y", color="color",
+                  #legend="legend",
+                   )
 
 
 def gfmt_callback(attr, new, old):
@@ -194,15 +204,11 @@ def gfmt_callback(attr, new, old):
     # Update color column
     if colorby_selector.value == "none":
         source.data["color"] = ["#1f77b3"] * len(ReinforcedVisit)
-    elif colorby_selector.value == "ObjectReinforced":
+
+    elif colorby_selector.value == "ObjectsReinforced":
         source.data["color"] = [
-            "#1f77b3" if objects == "Blue" else "#ff7e0e"
-            for objects in ReinforcedVisit["ObjectsReinforced"]
-        ]
-    elif colorby_selector.value == "Training":
-        source.data["color"] = [
-            "#1f77b3" if Training == "Trained" else "#ff7e0e"
-            for Training in ReinforcedVisit["Training"]
+            "#1f77b3" if Obj == "Blue" else "#ff7e0e"
+            for Obj in ReinforcedVisit["ObjectsReinforced"]
         ]
 
     elif colorby_selector.value == "Training":
@@ -210,6 +216,15 @@ def gfmt_callback(attr, new, old):
             "#1f77b3" if Training == "Trained" else "#ff7e0e"
             for Training in ReinforcedVisit["Training"]
         ]
+
+    elif colorby_selector.value == "Fly":
+        FlyColors = []
+
+        for fly, c in zip(ReinforcedVisit["Fly"].unique(), color):
+            FlyColors.append(c)
+
+        source.data["color"] = FlyColors
+
 
     # Update x-data and axis label
     source.data["x"] = ReinforcedVisit[x_selector.value]
