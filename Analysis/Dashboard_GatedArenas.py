@@ -182,10 +182,11 @@ p = bokeh.plotting.figure(
     frame_width=250,
     x_axis_label=x_selector.value,
     y_axis_label=y_selector.value,
+    legend_group=colorby_selector.value
 )
 
 # Populate glyphs
-circle = p.circle(source=source, x="x", y="y", color="color")
+circle = p.circle(source=source, x="x", y="y", color="color", legend="legend")
 
 
 def gfmt_callback(attr, new, old):
