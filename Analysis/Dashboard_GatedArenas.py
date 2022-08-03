@@ -178,7 +178,13 @@ colorby_selector = bokeh.models.Select(
 
 # Column data source
 source = bokeh.models.ColumnDataSource(
-    dict(x=ReinforcedVisit[x_selector.value], y=ReinforcedVisit[y_selector.value])
+    dict(x=ReinforcedVisit["Visits"],
+         y=ReinforcedVisit["Durations"],
+         Fly=ReinforcedVisit['Fly'],
+         Training=ReinforcedVisit['Training'],
+         ObjectsReinforced=ReinforcedVisit['ObjectsReinforced'],
+
+         )
 )
 
 # Add a column for colors; for now, all bokeh's default blue
@@ -190,6 +196,10 @@ p = bokeh.plotting.figure(
     frame_width=600,
     x_axis_label=x_selector.value,
     y_axis_label=y_selector.value,
+    tooltips=[('Fly', '@{Fly}'),
+                  ('Training state', '@Training'),
+                  ('Object reinforced', '@ObjectsReinforced')
+                 ],
     #legend_group=colorby_selector.value
 )
 
