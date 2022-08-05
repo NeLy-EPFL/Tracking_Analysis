@@ -141,17 +141,17 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
             Durations_Corner_Top = VisitsTop_gate[1]
             Durations_Front_Top = VisitsTop_gate_Front[1]
 
-            Peeks_Left = sum(1 for i in Durations_Corner_Left if i > 160)
-            Peeks_Right = sum(1 for i in Durations_Corner_Right if i > 160)
-            Peeks_Top = sum(1 for i in Durations_Corner_Top if i > 160)
+            #Peeks_Left = sum(1 for i in Durations_Corner_Left if i > 160)
+            #Peeks_Right = sum(1 for i in Durations_Corner_Right if i > 160)
+            #Peeks_Top = sum(1 for i in Durations_Corner_Top if i > 160)
 
-            LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 240)
-            LongPeeks_Right = sum(1 for i in Durations_Corner_Right if i > 240)
-            LongPeeks_Top = sum(1 for i in Durations_Corner_Top if i > 240)
+            #LongPeeks_Left = sum(1 for i in Durations_Corner_Left if i > 240)
+            #LongPeeks_Right = sum(1 for i in Durations_Corner_Right if i > 240)
+            #LongPeeks_Top = sum(1 for i in Durations_Corner_Top if i > 240)
 
-            Face_Left = sum(1 for i in Durations_Front_Left if i > 160)
-            Face_Right = sum(1 for i in Durations_Front_Right if i > 160)
-            Face_Top = sum(1 for i in Durations_Front_Top if i > 160)
+            #Face_Left = sum(1 for i in Durations_Front_Left if i > 160)
+            #Face_Right = sum(1 for i in Durations_Front_Right if i > 160)
+            #Face_Top = sum(1 for i in Durations_Front_Top if i > 160)
 
             FlyCount += 1
 
@@ -160,7 +160,8 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                     "Date": "22-03-04" if ("220304" in dirpath)
                     else "22-03-10" if ('220310' in dirpath)
                     else "22-07-28" if ('220728' in dirpath)
-                    else "22-07-29",
+                    else "22-07-29" if ('220729' in dirpath)
+                    else '22-08-04',
                     "Fly": FlyCount,
                     "Training": "Trained" if ("Trained" in dirpath) else "Ctrl",
                     "ObjectsReinforced" : "Blue" if ("BlueRew" in dirpath) else "Orange",
@@ -179,15 +180,15 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
                     "Relative Time Right": RelTimeRight,
                     "Relative Time far Left": RelTimeFarLeft,
                     "Relative Time far Right": RelTimeFarRight,
-                    "Peeks Left": Peeks_Left,
-                    "Peeks Right": Peeks_Right,
-                    "Peeks Top": Peeks_Top,
-                    "Face Left": Face_Left,
-                    "Face Right": Face_Right,
-                    "Face Top": Face_Top,
-                    "Long Peeks Left": LongPeeks_Left,
-                    "Long Peeks Right": LongPeeks_Right,
-                    "Long Peeks Top": LongPeeks_Top,
+                    #"Peeks Left": Peeks_Left,
+                    #"Peeks Right": Peeks_Right,
+                    #"Peeks Top": Peeks_Top,
+                    #"Face Left": Face_Left,
+                    #"Face Right": Face_Right,
+                    #"Face Top": Face_Top,
+                    #"Long Peeks Left": LongPeeks_Left,
+                    #"Long Peeks Right": LongPeeks_Right,
+                    #"Long Peeks Top": LongPeeks_Top,
                     "Visits Left Corner" : Times_Corner_Left,
                     "Durations Left Corner" : Durations_Corner_Left,
                     "Visits Right Corner" : Times_Corner_Right,
@@ -205,4 +206,4 @@ for dirpath, dirnames, filenames in os.walk(DataPath):
             Out = pd.DataFrame(Out)
             Data = Data.append(Out)
 
-Data.to_csv(DataPath + "/Results/DataSetNew.csv")
+Data.to_csv(DataPath + "/Results/DataSetAugust22.csv")
