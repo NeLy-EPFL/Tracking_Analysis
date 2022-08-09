@@ -1,62 +1,65 @@
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
+
 import ast
-
 import iqplot
-
-import bokeh.io
+import bokeh.layouts
 import bokeh.models
 import bokeh.plotting
+import holoviews as hv
+import panel as pn
+import colorcet
 
+from holoviews.operation.timeseries import rolling
 
-Data = pd.read_csv('/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetNew.csv')
+hv.extension('bokeh')
 
-Data["Peeks Left"] = [0] * len(Data)
-
-source = bokeh.models.ColumnDataSource(dict(Training=Data["Training"],
-                                            LCDurations= Data['Durations Left Corner'],
-                                            LPeeks=Data['Peeks Left']))
-
-ThreshSlider = bokeh.models.Slider(
-    title="Threshold",
-    start=0,
-    end=600,
-    step=10,
-    value=160
+Data = pd.read_csv(
+    "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetNew.csv"
 )
 
 
 
-def slider_callback(attr, old, new):
-    param = ThreshSlider.value
+ThreshSlider = pn.widgets.IntSlider(name='ThreshSlider', value=80, start=60, end=270, step=10)
 
-    for row in source.data:
-        source.data["LPeeks"] = sum(1 for i in ast.literal_eval(source.data['LCDurations'][row]) if i > param)
+def slider_callback(ThreshSlider):
+    for index, row in Data.iterrows():
+        # print(row['Durations Left Corner'])
+
+        # print (1 for i in row['Durations Left Corner'])
+        Data.loc[index, "Peeks Left"] = sum(
+            1 for i in ast.literal_eval(row["Durations Left Corner"]) if i > ThreshSlider
+        )
+        # Data_noWater_Simple['Peeks Left'][rows]= sum(1 for i in Data['Durations Left Corner'][rows] if i > param)
+    # print(Data['Peeks Left'])
+    box = hv.BoxWhisker(data=Data,
+                        kdims="Training",
+                        vdims="Peeks Left").opts(framewise=True,
+                                                 ylim=(0, 40),
+                                                 box_fill_alpha=0,
+                                                 invert_axes=True,
+                                                 invert_yaxis=True,
+                                                 # box_line_color="gray",
+                                                 )
+    points = hv.Scatter(data=Data,
+                        kdims="Training",
+                        vdims="Peeks Left").opts(framewise=True,
+                                                 cmap=colorcet.b_glasbey_category10,
+                                                 invert_axes=True,
+                                                 invert_yaxis=True,
+                                                 ylim=(0, 40),
+                                                 color="Training",
+                                                 jitter=0.4,
+                                                 )
+
+    return box * points
 
 
-    #Peeks_Right = sum(1 for i in Durations_Corner_Right if i > 160)
-    #Peeks_Top = sum(1 for i in Durations_Corner_Top if i > 160)
+dmap = hv.DynamicMap(pn.bind(slider_callback, ThreshSlider=ThreshSlider))
+# dmap = hv.DynamicMap(slider_callback)
 
-ThreshSlider.on_change("value", slider_callback)
+app = pn.Row(pn.WidgetBox('## Threshold Explorer', ThreshSlider),
+             dmap.opts(width=500,
+                       framewise=True,
+                       )).servable()
 
-p_box = iqplot.stripbox(data=source,
-                   q="LPeeks",
-                   cats="Training",
-                   )
-
-Box_layout = bokeh.layouts.row(
-    p_box,
-    bokeh.models.Spacer(width=15),
-    bokeh.layouts.column(
-        ThreshSlider,
-        width=200,
-    ),
-)
-
-def Box_App(doc):
-    doc.add_root(Box_layout)
-
-# Build the app in the current doc
-Box_App(bokeh.plotting.curdoc())
+pn.serve(app)
