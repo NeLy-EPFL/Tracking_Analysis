@@ -4,6 +4,7 @@ import ast
 import holoviews as hv
 import panel as pn
 import colorcet
+import bokeh
 
 hv.extension("bokeh")
 
@@ -48,11 +49,11 @@ conditions = [
 ]
 
 values = [
-    "Rewarded Side",
-    "Rewarded Side",
-    "Punished Side",
-    "Punished Side",
-    "Empty Side",
+    "Rewarded",
+    "Rewarded",
+    "Punished",
+    "Punished",
+    "Empty",
 ]
 Melted["Condition"] = np.select(conditions, values)
 
@@ -67,13 +68,16 @@ values = [
 Melted["Location"] = np.select(conditions, values)
 
 ThreshSlider = pn.widgets.IntSlider(
-    name="ThreshSlider", value=80, start=60, end=270, step=10
+    name="ThreshSlider", value=80, start=60, end=270, step=10,
+    #width=300,
 )
 
 Condis = list(Melted["Condition"].unique())
 Condis.append("All")
 
-Condition = pn.widgets.RadioButtonGroup(options=Condis)
+Condition = pn.widgets.RadioButtonGroup(options=Condis,
+                                        )
+
 
 Locs = list(Melted["Location"].unique())
 Locs.append("All")
@@ -116,7 +120,7 @@ def slider_callback(Date, Condition, Location, ThreshSlider):
     # print(Data['Peeks Left'])
     box = hv.BoxWhisker(data=Subset, kdims=["Training"], vdims=["Peeks"]).opts(
         framewise=True,
-        ylim=(0, 40),
+        ylim=(0, 30),
         box_fill_alpha=0,
         invert_axes=True,
         invert_yaxis=True,
@@ -128,10 +132,10 @@ def slider_callback(Date, Condition, Location, ThreshSlider):
         cmap=colorcet.b_glasbey_category10,
         invert_axes=True,
         invert_yaxis=True,
-        ylim=(0, 40),
+        ylim=(0, 30),
         color="Training",
         jitter=0.4,
-        size=6,
+        size=5,
         alpha=0.5,
         fontscale=2,
         tools=["hover"],
@@ -152,8 +156,8 @@ dmap = hv.DynamicMap(
 
 app = pn.Row(
     pn.WidgetBox(
-        "# Gated Arena peeking dashboard",
-        "##Threshold slider",
+        "# Gated Arenas Food objects peeking dashboard",
+        "###Threshold slider",
         ThreshSlider,
         "###Date of experiment",
         Date,
@@ -162,12 +166,19 @@ app = pn.Row(
         "###Location#",
         Location,
     ),
-    pn.Spacer(width=100),
+    pn.Spacer(width=50),
     dmap.opts(
         width=600,
         height=600,
         framewise=True,
-    ),
+    ), sizing_mode='stretch_both',
 ).servable()
 
-app
+#app
+
+app.save('test.html',
+         embed=True,
+         max_states=1000,
+         max_opts=30, # default : 3; used to limit options especially for slider like objects that can take lots of values
+         #embed_json=True
+        )
