@@ -81,6 +81,12 @@ Condis.append("All")
 Condition = pn.widgets.RadioButtonGroup(options=Condis,
                                         )
 
+Objs = list(Melted["ObjectsReinforced"].unique())
+Objs.append("All")
+
+Object = pn.widgets.RadioButtonGroup(options=Objs,
+                                     )
+
 
 Locs = list(Melted["Location"].unique())
 Locs.append("All")
@@ -93,7 +99,8 @@ Dates.insert(0, "All")
 Date = pn.widgets.Select(options=Dates)
 
 
-def slider_callback(Date, Condition, Location, ThreshSlider):
+def slider_callback(Condition, Location, ThreshSlider, Object):
+
     if (Condition == "All") & (Location == "All"):
         Subset = Melted
 
@@ -107,10 +114,15 @@ def slider_callback(Date, Condition, Location, ThreshSlider):
             (Melted["Condition"] == Condition) & (Melted["Location"] == Location)
         ]
 
-    if Date == "All":
+    #if Date == "All":
+    #    Subset = Subset
+    #else:
+    #    Subset = Subset[Subset["Date"] == Date]
+
+    if Object == "All":
         Subset = Subset
     else:
-        Subset = Subset[Subset["Date"] == Date]
+        Subset = Subset[Subset["ObjectsReinforced"] == Object]
 
     for index, row in Subset.iterrows():
         # print(row['Durations Left Corner'])
@@ -150,8 +162,9 @@ def slider_callback(Date, Condition, Location, ThreshSlider):
 dmap = hv.DynamicMap(
     pn.bind(
         slider_callback,
-        Date=Date,
+        #Date=Date,
         Condition=Condition,
+        Object=Object,
         Location=Location,
         ThreshSlider=ThreshSlider,
     )
@@ -166,6 +179,8 @@ app = pn.Row(
         Date,
         "###Focal Gate",
         Condition,
+        "### Object Reinforced",
+        Object,
         "###Location#",
         Location,
     ),

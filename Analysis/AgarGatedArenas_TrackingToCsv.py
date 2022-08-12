@@ -54,7 +54,7 @@ for file in Files:
 
     timer = 0
 
-    for frame, ypos in df.pos_y[200 < df.pos_x < 350].iteritems():
+    for frame, ypos in df.pos_y[(df.pos_x < 350) & (df.pos_x > 200)].iteritems():
         if 500 > ypos > 300:
             timer += 1
             # print (timer)
@@ -201,4 +201,4 @@ for file in Files:
     Out = pd.DataFrame(Out)
     Data = Data.append(Out)
 
-Data.to_csv(DataPath.as_posix() + "/Results/DataSetAugust22.csv")
+Data.to_csv(DataPath.as_posix() + "/Results/DataSetNew.csv")
