@@ -75,6 +75,8 @@ ThreshSlider = pn.widgets.IntSlider(
     #width=300,
 )
 
+Melted = Melted.loc[Melted["Location"] == 'Corner']
+
 Condis = list(Melted["Condition"].unique())
 Condis.append("All")
 
@@ -99,20 +101,13 @@ Dates.insert(0, "All")
 Date = pn.widgets.Select(options=Dates)
 
 
-def slider_callback(Condition, Location, ThreshSlider, Object):
+def slider_callback(Condition, ThreshSlider, Object):
 
-    if (Condition == "All") & (Location == "All"):
+    if (Condition == "All"):
         Subset = Melted
 
-    elif (Condition == "All") & (Location != "All"):
-        Subset = Melted[(Melted["Location"] == Location)]
-
-    elif (Condition != "All") & (Location == "All"):
-        Subset = Melted[(Melted["Condition"] == Condition)]
-    elif (Condition != "All") & (Location != "All"):
-        Subset = Melted[
-            (Melted["Condition"] == Condition) & (Melted["Location"] == Location)
-        ]
+    else:
+        Subset = Melted.loc[Melted["Condition"] == Condition]
 
     #if Date == "All":
     #    Subset = Subset
@@ -122,7 +117,7 @@ def slider_callback(Condition, Location, ThreshSlider, Object):
     if Object == "All":
         Subset = Subset
     else:
-        Subset = Subset[Subset["ObjectsReinforced"] == Object]
+        Subset = Subset.loc[Subset["ObjectsReinforced"] == Object]
 
     for index, row in Subset.iterrows():
         # print(row['Durations Left Corner'])
@@ -165,7 +160,7 @@ dmap = hv.DynamicMap(
         #Date=Date,
         Condition=Condition,
         Object=Object,
-        Location=Location,
+        #Location=Location,
         ThreshSlider=ThreshSlider,
     )
 )
@@ -181,8 +176,8 @@ app = pn.Row(
         Condition,
         "### Object Reinforced",
         Object,
-        "###Location#",
-        Location,
+        #"###Location#",
+        #Location,
     ),
     pn.Spacer(width=50),
     dmap.opts(
@@ -197,6 +192,6 @@ app = pn.Row(
 app.save('/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas_Agar/Results/AgarGatedArenas.html',
          embed=True,
          max_states=1000,
-         max_opts=30, # default : 3; used to limit options especially for slider like objects that can take lots of values
+         max_opts=3, # default : 3; used to limit options especially for slider like objects that can take lots of values
          #embed_json=True
         )
