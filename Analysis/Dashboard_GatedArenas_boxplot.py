@@ -9,7 +9,7 @@ import bokeh
 hv.extension("bokeh")
 
 Data = pd.read_csv(
-    "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetNew.csv"
+    "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetAugust22.csv"
 )
 Data = Data[Data['Test Starvation'] == "Overnight no Water"]
 Data = Data[Data["Training Starvation"] == "Not starved"]#.reset_index()
@@ -73,6 +73,8 @@ ThreshSlider = pn.widgets.IntSlider(
     #width=300,
 )
 
+Melted = Melted.loc[Melted["Location"] == 'Corner']
+
 Condis = list(Melted["Condition"].unique())
 Condis.append("All")
 
@@ -97,25 +99,12 @@ Date = pn.widgets.Select(options=Dates)
 
 
 def slider_callback(Condition, ThreshSlider, Object):
-    #if (Condition == "All") & (Location == "All"):
-    #    Subset = Melted
-
-    #elif (Condition == "All") & (Location != "All"):
-    #    Subset = Melted[(Melted["Location"] == Location)]
-
-    #elif (Condition != "All") & (Location == "All"):
-    #    Subset = Melted[(Melted["Condition"] == Condition)]
-    #elif (Condition != "All") & (Location != "All"):
-    #    Subset = Melted[
-    #        (Melted["Condition"] == Condition) & (Melted["Location"] == Location)
-    #    ]
-    Subset = Melted[(Melted["Location"] == "Corner")]
 
     if (Condition == "All"):
         Subset = Melted
 
     else:
-        Subset = Melted[(Melted["Condition"] == Condition)]
+        Subset = Melted.loc[(Melted["Condition"] == Condition)]
     #if Date == "All":
      #   Subset = Subset
     #else:
@@ -124,7 +113,7 @@ def slider_callback(Condition, ThreshSlider, Object):
     if Object == "All":
         Subset = Subset
     else:
-        Subset = Subset[Subset["ObjectsReinforced"] == Object]
+        Subset = Subset.loc[Subset["ObjectsReinforced"] == Object]
 
     for index, row in Subset.iterrows():
         # print(row['Durations Left Corner'])
