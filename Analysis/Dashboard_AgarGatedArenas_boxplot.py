@@ -101,7 +101,7 @@ Dates.insert(0, "All")
 Date = pn.widgets.Select(options=Dates)
 
 
-def slider_callback(Condition, ThreshSlider, Object):
+def slider_callback(Condition, ThreshSlider, Object, Date):
 
     if (Condition == "All"):
         Subset = Melted
@@ -109,10 +109,10 @@ def slider_callback(Condition, ThreshSlider, Object):
     else:
         Subset = Melted.loc[Melted["Condition"] == Condition]
 
-    #if Date == "All":
-    #    Subset = Subset
-    #else:
-    #    Subset = Subset[Subset["Date"] == Date]
+    if Date == "All":
+       Subset = Subset
+    else:
+       Subset = Subset.loc[Subset["Date"] == Date]
 
     if Object == "All":
         Subset = Subset
@@ -157,7 +157,7 @@ def slider_callback(Condition, ThreshSlider, Object):
 dmap = hv.DynamicMap(
     pn.bind(
         slider_callback,
-        #Date=Date,
+        Date=Date,
         Condition=Condition,
         Object=Object,
         #Location=Location,
@@ -170,12 +170,12 @@ app = pn.Row(
         "# Gated Arenas Agar objects peeking dashboard",
         "###Threshold slider",
         ThreshSlider,
-        #"###Date of experiment",
-        #Date,
         "###Focal Gate",
         Condition,
         "### Object Reinforced",
         Object,
+        "###Date of experiment",
+        Date,
         #"###Location#",
         #Location,
     ),
@@ -192,6 +192,6 @@ app = pn.Row(
 app.save('/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas_Agar/Results/AgarGatedArenas.html',
          embed=True,
          max_states=1000,
-         max_opts=3, # default : 3; used to limit options especially for slider like objects that can take lots of values
+         max_opts=3000, # default : 3; used to limit options especially for slider like objects that can take lots of values
          #embed_json=True
         )
