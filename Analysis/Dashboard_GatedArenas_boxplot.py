@@ -9,9 +9,10 @@ import bokeh
 hv.extension("bokeh")
 
 Data = pd.read_csv(
-    "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetNew.csv"
+    "/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/DataSetAugust22.csv"
 )
-
+Data = Data[Data['Test Starvation'] == "Overnight no Water"]
+Data = Data[Data["Training Starvation"] == "Not starved"]#.reset_index()
 # Prep dataset from data
 Melted = pd.melt(
     Data,
@@ -72,11 +73,18 @@ ThreshSlider = pn.widgets.IntSlider(
     #width=300,
 )
 
+Melted = Melted.loc[Melted["Location"] == 'Corner']
+
 Condis = list(Melted["Condition"].unique())
 Condis.append("All")
 
 Condition = pn.widgets.RadioButtonGroup(options=Condis,
                                         )
+Objs = list(Melted["ObjectsReinforced"].unique())
+Objs.append("All")
+
+Object = pn.widgets.RadioButtonGroup(options=Objs,
+                                     )
 
 
 Locs = list(Melted["Location"].unique())
@@ -90,24 +98,23 @@ Dates.insert(0, "All")
 Date = pn.widgets.Select(options=Dates)
 
 
-def slider_callback(Date, Condition, Location, ThreshSlider):
-    if (Condition == "All") & (Location == "All"):
+def slider_callback(Condition, ThreshSlider, Object, Date):
+
+    if Condition == "All":
         Subset = Melted
 
-    elif (Condition == "All") & (Location != "All"):
-        Subset = Melted[(Melted["Location"] == Location)]
-
-    elif (Condition != "All") & (Location == "All"):
-        Subset = Melted[(Melted["Condition"] == Condition)]
-    elif (Condition != "All") & (Location != "All"):
-        Subset = Melted[
-            (Melted["Condition"] == Condition) & (Melted["Location"] == Location)
-        ]
+    else:
+        Subset = Melted.loc[(Melted["Condition"] == Condition)]
 
     if Date == "All":
         Subset = Subset
     else:
-        Subset = Subset[Subset["Date"] == Date]
+        Subset = Subset.loc[Subset["Date"] == Date]
+
+    if Object == "All":
+        Subset = Subset
+    else:
+        Subset = Subset.loc[Subset["ObjectsReinforced"] == Object]
 
     for index, row in Subset.iterrows():
         # print(row['Durations Left Corner'])
@@ -149,7 +156,8 @@ dmap = hv.DynamicMap(
         slider_callback,
         Date=Date,
         Condition=Condition,
-        Location=Location,
+        Object=Object,
+        #Location=Location,
         ThreshSlider=ThreshSlider,
     )
 )
@@ -159,12 +167,14 @@ app = pn.Row(
         "# Gated Arenas Food objects peeking dashboard",
         "###Threshold slider",
         ThreshSlider,
-        "###Date of experiment",
-        Date,
+        "###Object rewarded",
+        Object,
         "###Focal Gate",
         Condition,
-        "###Location#",
-        Location,
+        "###Date of experiment",
+        Date,
+        #"###Location#",
+        #Location,
     ),
     pn.Spacer(width=50),
     dmap.opts(
@@ -176,9 +186,9 @@ app = pn.Row(
 
 #app
 
-app.save('test.html',
+app.save('/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/MultiSensory_Project/GatedArenas/Results/Boxplots_Peeking.html',
          embed=True,
          max_states=1000,
-         max_opts=30, # default : 3; used to limit options especially for slider like objects that can take lots of values
+         max_opts=5000, # default : 3; used to limit options especially for slider like objects that can take lots of values
          #embed_json=True
         )
