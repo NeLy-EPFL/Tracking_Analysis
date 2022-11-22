@@ -13,10 +13,18 @@ import platform
 
 platform.system()
 
-im_bg_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/BackgroundImages/")
-im_fg_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/ForegroundImages/")
-vid_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/Sample/")
-save_data_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/Processed/")
+#Working on mac
+#im_bg_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/BackgroundImages/")
+#im_fg_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/ForegroundImages/")
+#vid_dir_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/Sample/")
+#save_data_path = Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/Experimental_data/TrackingFiles/Processed/")
+
+#Working on workstation
+im_bg_dir_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/TrackingFiles/BackgroundImages/")
+im_fg_dir_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/TrackingFiles/ForegroundImages/")
+vid_dir_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/TrackingFiles/Sample/")
+save_data_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/TrackingFiles/Processed/")
+
 #if (platform.system() == 'Windows'):
    # im_bg_dir_path = "C:\\Users\\123mn\\OneDrive\\Documents\\0_Assistant_temp_EPFL\\Optobot\\optobot_control_ROS\\data\\background_elem\\"
     #im_fg_dir_path = "C:\\Users\\123mn\\OneDrive\\Documents\\0_Assistant_temp_EPFL\\Optobot\\optobot_control_ROS\\data\\foreground_elem\\"
@@ -462,10 +470,10 @@ def gen_background(im_full_gray):
     background_rails = np.zeros(im_full_gray.shape, np.uint8)
 
     # reading images of background elements
-    im_arena_door_gray = cv2.cvtColor(cv2.imread(im_bg_dir_path + "im_arena_door.jpg"), cv2.COLOR_BGR2GRAY)
-    im_arena_door_gray_unif = cv2.cvtColor(cv2.imread(im_bg_dir_path + "im_arena_door_unif.jpg"), cv2.COLOR_BGR2GRAY)
-    im_rail_gray = cv2.cvtColor(cv2.imread(im_bg_dir_path + "im_rail.jpg"), cv2.COLOR_BGR2GRAY)
-    im_rail_gray_unif = cv2.cvtColor(cv2.imread(im_bg_dir_path + "im_rail_unif.jpg"), cv2.COLOR_BGR2GRAY)
+    im_arena_door_gray = cv2.cvtColor(cv2.imread(im_bg_dir_path.joinpath("im_arena_door.jpg").as_posix()), cv2.COLOR_BGR2GRAY)
+    im_arena_door_gray_unif = cv2.cvtColor(cv2.imread(im_bg_dir_path.joinpath("im_arena_door_unif.jpg").as_posix()), cv2.COLOR_BGR2GRAY)
+    im_rail_gray = cv2.cvtColor(cv2.imread(im_bg_dir_path.joinpath("im_rail.jpg").as_posix()), cv2.COLOR_BGR2GRAY)
+    im_rail_gray_unif = cv2.cvtColor(cv2.imread(im_bg_dir_path.joinpath("im_rail_unif.jpg").as_posix()), cv2.COLOR_BGR2GRAY)
 
     # resizing elements
     im_arena_door_gray_resized = cv2.resize(im_arena_door_gray, (im_full_gray.shape[1], im_full_gray.shape[0]),
