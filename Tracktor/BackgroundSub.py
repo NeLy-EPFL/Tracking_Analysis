@@ -3,8 +3,8 @@ import random
 from pathlib import Path
 
 
-DataPath = Path ('/Users/ulric/Desktop/105905_s0a0_p6-0')
-Filters = ['Results', 'BadExp','Trimmed']
+DataPath = Path ("C:/Users/matth/OneDrive/Bureau/Test")
+Filters = ['Results', 'BadExp', 'Trimmed']
 
 Files = [path for path in DataPath.rglob('*.mp4') if any(match in path.as_posix() for match in Filters) is False]
 
