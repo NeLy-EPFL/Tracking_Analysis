@@ -549,3 +549,8 @@ def gen_background(im_full_gray):
         im_full_gray_adr = cv2.subtract(im_full_gray_adr, trans)
 
     return background_arena_door, background_rails, background_full
+
+def ExtList(thelist, tails):
+    ###This function adds margins to cropped arenas###
+    Extlist = list(range(thelist[0]-tails,thelist[-1]+tails))
+    return(Extlist)
