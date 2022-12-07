@@ -3,8 +3,8 @@ import random
 from pathlib import Path
 
 
-DataPath = Path ("C:/Users/matth/OneDrive/Bureau/Test")
-Filters = ['Results', 'BadExp', 'Trimmed']
+DataPath = Path ("/mnt/labserver/DURRIEU_Matthias/Experimental_data/Optogenetics/Optobot/MultiMazeBiS_15_Steel_Wax/Female_Starved_noWater/221116")
+Filters = ['Results', 'BadExp', 'Trimmed', 'p6-0_80fps.mp4']
 
 Files = [path for path in DataPath.rglob('*.mp4') if any(match in path.as_posix() for match in Filters) is False]
 
@@ -87,7 +87,7 @@ for file in Files:
 
             if this == Frame:
 
-                cv2.imwrite(file.parent.joinpath("Background.jpg").as_posix(), bg)
+                cv2.imwrite(file.parent.joinpath(file.stem+"_Background.jpg").as_posix(), bg)
                 break
 
             k = cv2.waitKey(30) & 0xFF
