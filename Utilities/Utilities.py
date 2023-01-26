@@ -1,4 +1,6 @@
 import datetime
+import numpy as np
+import pandas as pd
 
 def frame2time(time, fps, reverse=False, clockformat=False):
     """Converts a framecount to time and vice-versa
@@ -53,3 +55,48 @@ def frame2time(time, fps, reverse=False, clockformat=False):
                 print('Wrong variable type entered. Provide a string with "%Hours:%Minutes:%Seconds" format.')
 
     return timestamp
+
+def checksave(path, object, file):
+    """Checks if a file exists and asks the user if they want to overwrite it.
+    Arguments:
+        file: string. The name of the file to be saved.
+        object: string. The kind of the file to be saved. will adapt the format to be used
+            Currently, supported objects are: 
+            > "parameters" : numpy array or list to be saved as .npy 
+            > "dataframe" : pandas dataframe to be saved as .feather
+    """
+    if object == "parameters":
+        if path.exists() is True:
+            choice = input("File already exists! Overwrite? [y/n]")
+
+            if choice == "n":
+                print("File unchanged.")
+
+            elif choice == "y":
+                np.save(path, file)
+                print("File updated.")
+
+            else:
+                print("invalid input")
+
+        else:
+            np.save(path, file)
+        
+    elif object == "dataframe":
+        if path.exists() is True:
+            choice = input("File already exists! Overwrite? [y/n]")
+
+            if choice == "n":
+                print("File unchanged.")
+
+            elif choice == "y":
+                file.to_feather(path)
+                print("File updated.")
+
+            else:
+                print("invalid input")
+
+        else:
+            file.to_feather(path)
+    
+    else: print("Invalid object type")
