@@ -1,6 +1,7 @@
 import datetime
 import numpy as np
 import pandas as pd
+from traceback import format_tb
 
 def checksave(path, object, file):
     """Checks if a file exists and asks the user if they want to overwrite it.
@@ -11,41 +12,48 @@ def checksave(path, object, file):
             > "parameter" : numpy array or list to be saved as .npy 
             > "dataframe" : pandas dataframe to be saved as .feather
     """
-    if object == "parameter":
-        if path.exists() is True:
-            choice = input("File already exists! Overwrite? [y/n]")
-
-            if choice == "n":
-                print("File unchanged.")
-
-            elif choice == "y":
-                np.save(path, file)
-                print("File updated.")
-
-            else:
-                print("invalid input")
-
-        else:
-            np.save(path, file)
-        
-    elif object == "dataframe":
-        if path.exists() is True:
-            choice = input("File already exists! Overwrite? [y/n]")
-
-            if choice == "n":
-                print("File unchanged.")
-
-            elif choice == "y":
-                file.to_feather(path)
-                print("File updated.")
-
-            else:
-                print("invalid input")
-
-        else:
-            file.to_feather(path)
+    # check if provided path is a pathlib Path object
     
-    else: print("Invalid object type")
+    try:
+        if object == "parameter":
+            if path.exists() is True:
+                choice = input("File already exists! Overwrite? [y/n]")
+
+                if choice == "n":
+                    print("File unchanged.")
+
+                elif choice == "y":
+                    np.save(path, file)
+                    print("File updated.")
+
+                else:
+                    print("invalid input")
+
+            else:
+                np.save(path, file)
+            
+        elif object == "dataframe":
+            if path.exists() is True:
+                choice = input("File already exists! Overwrite? [y/n]")
+
+                if choice == "n":
+                    print("File unchanged.")
+
+                elif choice == "y":
+                    file.to_feather(path)
+                    print("File updated.")
+
+                else:
+                    print("invalid input")
+
+            else:
+                file.to_feather(path)
+        
+        else: print("Invalid object type")
+    
+    except AttributeError as err:
+        raise AttributeError("path argument must be a pathlib object")
+
 
 def frame2time(time, fps, reverse=False, clockformat=False):
     """Converts a framecount to time and vice-versa
