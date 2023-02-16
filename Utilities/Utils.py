@@ -108,3 +108,18 @@ def frame2time(time, fps, reverse=False, clockformat=False):
                 print('Wrong variable type entered. Provide a string with "%Hours:%Minutes:%Seconds" format.')
 
     return timestamp
+
+def add_note(path, note):
+    """Adds a note to a file or update an existing note.
+    Arguments:
+        path: pathlib object. Path to the file to be modified
+        note: string. The note to be added to the file
+    """
+    if path.parent.joinpath("notes.txt").exists():
+        with open(path.parent.joinpath('notes.txt').as_posix(), 'a') as f:
+            f.write(note+'\n')
+        print('note file updated')
+    else:
+        with open(path.parent.joinpath('notes.txt').as_posix(), "w") as f:
+            f.write(note+'\n')
+        print('note file created')
