@@ -14,6 +14,8 @@ def butter_lowpass_filter(
     y = signal.filtfilt(b, a, data)
     return y
 
+#TODO: Add Savitzky-Golay filter
+
 # Compute bootstrapped confidence interval
 
 rg = np.random.default_rng()
