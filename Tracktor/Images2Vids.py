@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
+from tqdm import tqdm
 
-folder_path = Path("/home/matthias/Videos/230606_DarkishTest_Cropped_Subsets/")
+folder_path = Path("/home/matthias/Videos/Test_Cropped/")
 output_folder = folder_path.parent / f"{folder_path.stem}_Videos"
+
+output_folder.mkdir(exist_ok=True)
 
 def create_video_from_images(images_folder, output_folder, video_name, fps):
     f = images_folder.as_posix()
