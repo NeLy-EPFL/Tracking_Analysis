@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set input and output paths
-input_path="/home/matthias/Videos/230606_DarkishTest_Cropped_Subsets_Videos/"
-output_path="/home/matthias/Documents/Sleap/Labels/230606_DarkishTest/"
+input_path="/home/matthias/Videos/Test1_2_Merged/"
+output_path="/home/matthias/Documents/Sleap/Labels/Tests1_2_Merged/"
 model_path="/home/matthias/Documents/Sleap/Labels/models/230602_141343.single_instance.n=108/"
 
 # Find all videos in input folder
