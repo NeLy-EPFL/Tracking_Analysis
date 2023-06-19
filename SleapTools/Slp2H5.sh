@@ -4,8 +4,8 @@
 source activate sleap
 
 # set input and output folders
-input_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Datasets/230606_DarkishTest"
-output_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Datasets/230606_DarkishTest"
+input_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Datasets/Tests1_2_Merged"
+output_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Datasets/Tests1_2_Merged"
 
 # for each .slp file in the input folder
 for file in "$input_folder"/*.slp; do
