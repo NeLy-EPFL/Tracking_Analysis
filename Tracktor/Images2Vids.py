@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from tqdm import tqdm
 
-folder_path = Path("/home/matthias/Videos/Test2_Cropped/")
+folder_path = Path("/home/matthias/Videos/230606_LightReco_Cropped/")
 output_folder = folder_path.parent / f"{folder_path.stem}_Videos"
 
 output_folder.mkdir(exist_ok=True)
