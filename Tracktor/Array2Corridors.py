@@ -12,11 +12,10 @@ from tqdm import tqdm
 
 # Path definitions
 
-datafolder = Path("/Volumes/Ramdya-Lab/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/")
-
+datafolder = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos")
 # For directories and subdirectories within the datafolder, if they contain images and do not have '_Cropped' in their name, add them to the list of folders to process
                                 
-inputfolder = datafolder.joinpath("/Feeding_state/230704_FeedingState_1_AM/")
+inputfolder = datafolder.joinpath("Feeding_state/230704_FeedingState_1_AM")
 
 # Load the first frame
 frame = cv2.imread(inputfolder.joinpath("image0.jpg").as_posix())
