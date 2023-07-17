@@ -42,6 +42,11 @@ def check_process(data_folder):
                     print(f"{folder.name} is already processed and its integrity is verified.")
                 else:
                     print(f"{folder.name} is already processed but its integrity is not verified.")
+                    remove = input(f"Do you want to remove the {cropped_folder} folder? (y/n): ")
+                    if remove.lower() == 'y':
+                        shutil.rmtree(cropped_folder_path)
+                        print(f"{cropped_folder} folder removed.")
+
                     
             else:
                 print(f"{folder.name} is not processed. Processing...")
