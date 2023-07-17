@@ -10,51 +10,97 @@ from scipy import signal
 import re
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import shutil
+from itertools import repeat
 
 # Path definitions
 
 datafolder = Path("/home/matthias/Videos/")
 # For directories and subdirectories within the datafolder, if they contain images and do not have '_Cropped' in their name, add them to the list of folders to process
 
+
 def check_integrity(folder, source_folder):
     if len(list(folder.iterdir())) != 9:
         return False
-    source_image_count = len(list(source_folder.glob('*.png'))) + len(list(source_folder.glob('*.jpg')))
+    source_image_count = len(list(source_folder.glob("*.png"))) + len(
+        list(source_folder.glob("*.jpg"))
+    )
     for subfolder in folder.iterdir():
         if not subfolder.is_dir() or len(list(subfolder.iterdir())) != 6:
             return False
         for subsubfolder in subfolder.iterdir():
             if not subsubfolder.is_dir():
                 return False
-            image_count = len(list(subsubfolder.glob('*.png'))) + len(list(subsubfolder.glob('*.jpg')))
+            image_count = len(list(subsubfolder.glob("*.png"))) + len(
+                list(subsubfolder.glob("*.jpg"))
+            )
             if image_count != source_image_count:
                 return False
     return True
 
+
 def check_process(data_folder):
     data_folder = Path(data_folder)
     for folder in data_folder.iterdir():
-        if folder.is_dir() and not folder.name.endswith('_Cropped'):
-            cropped_folder = folder.name + '_Cropped'
+        if folder.is_dir() and not folder.name.endswith("_Cropped"):
+            cropped_folder = folder.name + "_Cropped"
             cropped_folder_path = data_folder / cropped_folder
             if cropped_folder_path.exists():
                 if check_integrity(cropped_folder_path, folder):
-                    print(f"{folder.name} is already processed and its integrity is verified.")
+                    print(
+                        f"{folder.name} is already processed and its integrity is verified."
+                    )
                 else:
-                    print(f"{folder.name} is already processed but its integrity is not verified.")
-                    remove = input(f"Do you want to remove the {cropped_folder} folder? (y/n): ")
-                    if remove.lower() == 'y':
+                    print(
+                        f"{folder.name} is already processed but its integrity is not verified."
+                    )
+                    remove = input(
+                        f"Do you want to remove the {cropped_folder} folder? (y/n): "
+                    )
+                    if remove.lower() == "y":
                         shutil.rmtree(cropped_folder_path)
                         print(f"{cropped_folder} folder removed.")
 
-                    
             else:
                 print(f"{folder.name} is not processed. Processing...")
                 process_folder(folder)
-                
+
+
+def modify_corridors(Corridors):
+    for i in range(len(Corridors)):
+        for j in range(len(Corridors[i])):
+            corridor = list(Corridors[i][j])
+            height = corridor[3] - corridor[1]
+            width = corridor[2] - corridor[0]
+            if height % 2 != 0:
+                corridor[3] += 1
+            if width % 2 != 0:
+                corridor[2] += 1
+            Corridors[i][j] = tuple(corridor)
+    return Corridors
+
+
+def process_image(image, Corridors, folder, processedfolder):
+    # Read and process the image
+    frame = cv2.imread(str(folder / image))
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # frame = np.rot90(frame)
+
+    for j, subset in enumerate(Corridors):
+        for k, corridor in enumerate(subset):
+            # Get the subfolder for this arena and corridor
+            subfolder = processedfolder / f"arena{j+1}" / f"corridor_{k+1}"
+
+            # Crop the image
+            x1, y1, x2, y2 = corridor
+            cropped_image = frame[y1:y2, x1:x2]
+
+            # Save the cropped image
+            cropped_image_file = f"{Path(image).stem}_cropped.jpg"
+            cv2.imwrite(str(subfolder / cropped_image_file), cropped_image)
+
 
 def process_folder(in_folder):
-                                    
     inputfolder = in_folder
 
     # Create a list of all the images in the target folder
@@ -193,20 +239,6 @@ def process_folder(in_folder):
         # subcors = generate_subsets(subset, regions_of_interest)
 
         Corridors.append(subcors)
-        
-    def modify_corridors(Corridors):
-        for i in range(len(Corridors)):
-            for j in range(len(Corridors[i])):
-                corridor = list(Corridors[i][j])
-                height = corridor[3] - corridor[1]
-                width = corridor[2] - corridor[0]
-                if height % 2 != 0:
-                    corridor[3] += 1
-                if width % 2 != 0:
-                    corridor[2] += 1
-                Corridors[i][j] = tuple(corridor)
-        return Corridors
-
 
     Corridors = modify_corridors(Corridors)
 
@@ -223,35 +255,15 @@ def process_folder(in_folder):
                 vmin=0,
                 vmax=255,
             )
-            
+
     # Remove the axis of each subplot and draw them closer together
     for ax in axs.flat:
         ax.axis("off")
     plt.subplots_adjust(wspace=0, hspace=0)
     # Save the figure in the output folder
-    plt.savefig(str(processedfolder.joinpath("crop_check.png")), dpi=300, bbox_inches="tight")
-
-
-
-    def process_image(image):
-        # Read and process the image
-        frame = cv2.imread(str(folder / image))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        #frame = np.rot90(frame)
-
-        for j, subset in enumerate(Corridors):
-            for k, corridor in enumerate(subset):
-                # Get the subfolder for this arena and corridor
-                subfolder = processedfolder / f"arena{j+1}" / f"corridor_{k+1}"
-
-                # Crop the image
-                x1, y1, x2, y2 = corridor
-                cropped_image = frame[y1:y2, x1:x2]
-
-                # Save the cropped image
-                cropped_image_file = f"{Path(image).stem}_cropped.jpg"
-                cv2.imwrite(str(subfolder / cropped_image_file), cropped_image)
-
+    plt.savefig(
+        str(processedfolder.joinpath("crop_check.png")), dpi=300, bbox_inches="tight"
+    )
 
     # Get a list of all image files in the input folder
     images = [f.name for f in folder.glob("*.[jJ][pP][gG]") if f.is_file()]
@@ -267,8 +279,19 @@ def process_folder(in_folder):
 
     # Process the images in parallel using a process pool
     with ProcessPoolExecutor() as executor:
-        results = list(tqdm(executor.map(process_image, images), total=len(images)))
-        
+        results = list(
+            tqdm(
+                executor.map(
+                    process_image,
+                    images,
+                    repeat(Corridors),
+                    repeat(folder),
+                    repeat(processedfolder),
+                ),
+                total=len(images),
+            )
+        )
+
     if check_integrity(processedfolder, folder):
         print("Processing successful!")
     else:
