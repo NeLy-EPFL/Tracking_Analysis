@@ -20,18 +20,27 @@ import subprocess
 datafolder = Path("/home/matthias/Videos/")
 # For directories and subdirectories within the datafolder, if they contain images and do not have '_Cropped' in their name, add them to the list of folders to process
 
+
 def check_process(data_folder):
     data_folder = Path(data_folder)
     for folder in data_folder.iterdir():
-        if folder.is_dir() and not folder.name.endswith("_Cropped") and not folder.name.endswith("_Checked"):
+        if (
+            folder.is_dir()
+            and not folder.name.endswith("_Cropped")
+            and not folder.name.endswith("_Checked")
+        ):
             cropped_folder = folder.name + "_Cropped"
             checked_folder = folder.name + "_Checked"
             cropped_folder_path = data_folder / cropped_folder
             checked_folder_path = data_folder / checked_folder
             if cropped_folder_path.exists():
-                print(f"{folder.name} is already processed but its integrity is not verified.")
+                print(
+                    f"{folder.name} is already processed but its integrity is not verified."
+                )
             elif checked_folder_path.exists():
-                print(f"{folder.name} is already processed and its integrity is verified.")
+                print(
+                    f"{folder.name} is already processed and its integrity is verified."
+                )
             else:
                 print(f"{folder.name} is not processed. Processing...")
                 process_folder(folder)
@@ -262,11 +271,14 @@ def process_folder(in_folder):
                 total=len(images),
             )
         )
-        
-    print(f'Processing of {in_folder.name} finished!')    
+
+    print(f"Processing of {in_folder.name} finished!")
+
 
 check_process(datafolder)
 
-run_checkcrops = input("Do you want to run the CheckCrops.sh script to verify the processed folders integrity? (y/n): ")
-if run_checkcrops.lower() == 'y':
-    subprocess.run(['/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh'])
+run_checkcrops = input(
+    "Launch verification of processed folders integrity? (y/n): "
+)
+if run_checkcrops.lower() == "y":
+    subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])
