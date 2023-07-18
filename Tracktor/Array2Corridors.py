@@ -12,55 +12,26 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import shutil
 from itertools import repeat
+import subprocess
+
 
 # Path definitions
 
 datafolder = Path("/home/matthias/Videos/")
 # For directories and subdirectories within the datafolder, if they contain images and do not have '_Cropped' in their name, add them to the list of folders to process
 
-
-def check_integrity(folder, source_folder):
-    if len(list(folder.iterdir())) != 9:
-        return False
-    source_image_count = len(list(source_folder.glob("*.png"))) + len(
-        list(source_folder.glob("*.jpg"))
-    )
-    for subfolder in folder.iterdir():
-        if not subfolder.is_dir() or len(list(subfolder.iterdir())) != 6:
-            return False
-        for subsubfolder in subfolder.iterdir():
-            if not subsubfolder.is_dir():
-                return False
-            image_count = len(list(subsubfolder.glob("*.png"))) + len(
-                list(subsubfolder.glob("*.jpg"))
-            )
-            if image_count != source_image_count:
-                return False
-    return True
-
-
 def check_process(data_folder):
     data_folder = Path(data_folder)
     for folder in data_folder.iterdir():
-        if folder.is_dir() and not folder.name.endswith("_Cropped"):
+        if folder.is_dir() and not folder.name.endswith("_Cropped") and not folder.name.endswith("_Checked"):
             cropped_folder = folder.name + "_Cropped"
+            checked_folder = folder.name + "_Checked"
             cropped_folder_path = data_folder / cropped_folder
+            checked_folder_path = data_folder / checked_folder
             if cropped_folder_path.exists():
-                if check_integrity(cropped_folder_path, folder):
-                    print(
-                        f"{folder.name} is already processed and its integrity is verified."
-                    )
-                else:
-                    print(
-                        f"{folder.name} is already processed but its integrity is not verified."
-                    )
-                    remove = input(
-                        f"Do you want to remove the {cropped_folder} folder? (y/n): "
-                    )
-                    if remove.lower() == "y":
-                        shutil.rmtree(cropped_folder_path)
-                        print(f"{cropped_folder} folder removed.")
-
+                print(f"{folder.name} is already processed but its integrity is not verified.")
+            elif checked_folder_path.exists():
+                print(f"{folder.name} is already processed and its integrity is verified.")
             else:
                 print(f"{folder.name} is not processed. Processing...")
                 process_folder(folder)
@@ -291,10 +262,11 @@ def process_folder(in_folder):
                 total=len(images),
             )
         )
-
-    if check_integrity(processedfolder, folder):
-        print("Processing successful!")
-    else:
-        print("Processing failed!")
+        
+    print(f'Processing of {in_folder.name} finished!')    
 
 check_process(datafolder)
+
+run_checkcrops = input("Do you want to run the CheckCrops.sh script to verify the processed folders integrity? (y/n): ")
+if run_checkcrops.lower() == 'y':
+    subprocess.run(['/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh'])
