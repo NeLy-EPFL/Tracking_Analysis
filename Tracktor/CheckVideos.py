@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+import shutil
 
 
 def check_video_integrity(video_path):
@@ -50,15 +51,14 @@ def check_folder_integrity(folder):
                 if not check_video_integrity(video_path.as_posix()):
                     print(f"Video {video_path.name} is corrupted or otherwise unusable")
                     return False
-    print(f"Folder {folder.name} is verified.")
     return True
 
 
-def process_data_folder(data_folder):
+def process_data_folder(data_folder, source_data_folder):
     data_folder = Path(data_folder)
 
     for folder in data_folder.iterdir():
-        if not folder.is_dir() or not folder.name.endswith("_Checked"):
+        if not folder.is_dir() or not folder.name.endswith("_Videos"):
             continue
         print(f"Checking integrity of folder: {folder.name}")
         verified = check_folder_integrity(folder)
@@ -67,10 +67,22 @@ def process_data_folder(data_folder):
             folder.rename(new_name)
             print(f"Folder {folder.name} is verified.")
             print(f"Folder renamed to: {new_name}")
+            
+            # Prompt user to remove original image folder
+            remove_images = input(f"Do you want to remove the original image folder for {folder.name}? (y/n): ")
+            if remove_images.lower() == 'y':
+                image_folder_name = folder.name.replace('_Videos', '_Cropped_Checked')
+                image_folder = source_data_folder / image_folder_name
+                if image_folder.exists() and image_folder.is_dir():
+                    print(f"Removing original image folder: {image_folder.as_posix()}")
+                    shutil.rmtree(image_folder)
         else:
             print(f"Folder {folder.name} is not verified.")
 
 
+source_data_folder = Path('/home/matthias/Videos/') 
+
 process_data_folder(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/"
+    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/",
+    source_data_folder
 )

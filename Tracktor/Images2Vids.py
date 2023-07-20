@@ -51,14 +51,18 @@ def search_folder_for_images(folder_path, output_folder, fps):
                 create_video_from_images(subdir, video_output_folder, video_name, fps)
             pbar.update(1)
 
-
 for folder in data_folder.iterdir():
     if folder.is_dir() and folder.name.endswith("_Checked"):
         output_folder_name = folder.name.replace("_Cropped_Checked", "")
-        output_folder = output_path / f"{output_folder_name}_Videos"
+        output_folder = output_path / f"{output_folder_name}"
         output_folder.mkdir(exist_ok=True)
         search_folder_for_images(folder, output_folder, fps)
-        
+        # Rename the output folder after all videos have been created
+        print(f"Processing of {folder.name} complete.")
+        new_output_folder_name = f"{output_folder_name}_Videos"
+        new_output_folder = output_path / new_output_folder_name
+        output_folder.rename(new_output_folder)
+
 run_checkcrops = input(
     "Launch verification of processed folders integrity? (y/n): "
 )

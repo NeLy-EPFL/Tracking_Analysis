@@ -254,7 +254,7 @@ def process_folder(in_folder):
     # Create the subfolders for each arena and corridor
     for j, subset in enumerate(Corridors):
         for k, corridor in enumerate(subset):
-            subfolder = processedfolder / f"arena{j+1}" / f"corridor_{k+1}"
+            subfolder = processedfolder / f"arena{j+1}" / f"corridor{k+1}"
             subfolder.mkdir(parents=True, exist_ok=True)
 
     # Process the images in parallel using a process pool
