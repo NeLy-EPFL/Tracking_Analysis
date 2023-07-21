@@ -7,6 +7,10 @@ source activate sleap
 datafolder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/"
 model_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Labels/models/230602_141343.single_instance.n=108/"
 
+# Print out the values of datafolder and model_path
+echo "datafolder: $datafolder"
+echo "model_path: $model_path"
+
 # Find all subdirectories in datafolder
 subdirs=$(find $datafolder -type d)
 
@@ -32,6 +36,7 @@ for subdir in $subdirs; do
         done
     fi
 done
+
 
 
 #TODO : make the script loop over all files. 
