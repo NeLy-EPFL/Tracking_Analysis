@@ -21,25 +21,25 @@ def check_folder_integrity(folder):
     folder = Path(folder)
     folder_items = list(folder.iterdir())
     # Check for exactly 9 subfolders in folder
-    subfolder_count = sum(1 for item in folder_items if item.is_dir())
+    subfolder_count = sum(1 for item in folder_items if item.is_dir() and not item.name.startswith('.'))
     if subfolder_count != 9:
-        print(f"Number of subfolders in folder: {subfolder_count}")
+        print(f"Number of arenas in folder: {subfolder_count}")
         return False
     else:
         print(f"All arenas found...")
     for subfolder in folder.iterdir():
-        if not subfolder.is_dir():
+        if not subfolder.is_dir() or subfolder.name.startswith('.'):
             continue
-        if len(list(subfolder.iterdir())) != 6:
+        if sum(1 for item in subfolder.iterdir() if not item.name.startswith('.')) != 6:
             print(
-                f"Number of subsubfolders in subfolder: {len(list(subfolder.iterdir()))}"
+                f"Number of corridors in {subfolder.name}: {sum(1 for item in subfolder.iterdir() if not item.name.startswith('.'))}"
             )
             return False
         else:
             print(f"All corridors found in {subfolder.stem}...")
         for subsubfolder in subfolder.iterdir():
-            if not subsubfolder.is_dir():
-                return False
+            if not subsubfolder.is_dir() or subsubfolder.name.startswith('.'):
+                continue
             video_count = len(list(subsubfolder.glob("*.mp4")))
             if video_count != 1:
                 print(
@@ -52,7 +52,6 @@ def check_folder_integrity(folder):
                     print(f"Video {video_path.name} is corrupted or otherwise unusable")
                     return False
     return True
-
 
 def process_data_folder(data_folder, source_data_folder):
     data_folder = Path(data_folder)

@@ -34,7 +34,7 @@ def search_folder_for_images(folder_path, output_folder, fps):
     for subdir in folder_path.glob('**/*'):
         if subdir.is_dir() and any(file.name.endswith('.jpg') for file in subdir.glob('*')):
             subdirs.append(subdir)
-    with tqdm(total=len(subdirs), desc=f"Processing videos in {folder_path.name}") as pbar:
+    with tqdm(total=len(subdirs), desc="Processing videos") as pbar:
         for subdir in subdirs:
             relative_subdir = subdir.relative_to(folder_path)
             video_output_folder = output_folder / relative_subdir
@@ -53,6 +53,7 @@ def search_folder_for_images(folder_path, output_folder, fps):
 
 for folder in data_folder.iterdir():
     if folder.is_dir() and folder.name.endswith("_Checked"):
+        print(f"Processing folder: {folder.name}")
         output_folder_name = folder.name.replace("_Cropped_Checked", "")
         output_folder = output_path / f"{output_folder_name}"
         output_folder.mkdir(exist_ok=True)
@@ -68,3 +69,7 @@ run_checkcrops = input(
 )
 if run_checkcrops.lower() == "y":
     subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
+
+#TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
+
+#TODO : make the script run as a background process, always checking for non processed videos

@@ -69,7 +69,7 @@ def process_image(image, Corridors, folder, processedfolder):
     for j, subset in enumerate(Corridors):
         for k, corridor in enumerate(subset):
             # Get the subfolder for this arena and corridor
-            subfolder = processedfolder / f"arena{j+1}" / f"corridor_{k+1}"
+            subfolder = processedfolder / f"arena{j+1}" / f"corridor{k+1}"
 
             # Crop the image
             x1, y1, x2, y2 = corridor
