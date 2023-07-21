@@ -100,3 +100,5 @@ def process_data_folder(data_folder):
 
 
 process_data_folder("/home/matthias/Videos/")
+
+#TODO: Fix image sample not being closed after checking integrity
