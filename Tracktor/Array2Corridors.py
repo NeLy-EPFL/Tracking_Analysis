@@ -28,6 +28,7 @@ def check_process(data_folder):
             folder.is_dir()
             and not folder.name.endswith("_Cropped")
             and not folder.name.endswith("_Checked")
+            and folder.name.endswith("_Recorded")
         ):
             cropped_folder = folder.name + "_Cropped"
             checked_folder = folder.name + "_Checked"
@@ -44,6 +45,7 @@ def check_process(data_folder):
             else:
                 print(f"{folder.name} is not processed. Processing...")
                 process_folder(folder)
+
 
 
 def modify_corridors(Corridors):
@@ -85,7 +87,8 @@ def process_folder(in_folder):
 
     # Create a list of all the images in the target folder
     folder = inputfolder
-    processedfolder = inputfolder.parent / f"{inputfolder.stem}_Cropped"
+    
+    processedfolder = inputfolder.with_name(inputfolder.stem.replace("_Recorded", "_Cropped"))
 
     # Create the subfolder if it doesn't exist
     processedfolder.mkdir(exist_ok=True)

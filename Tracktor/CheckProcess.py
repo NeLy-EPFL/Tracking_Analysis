@@ -1,6 +1,8 @@
 from pathlib import Path
 from PIL import Image
 import shutil
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 def check_integrity(folder, source_folder):
     folder = Path(folder)
@@ -18,10 +20,11 @@ def check_integrity(folder, source_folder):
     else:
         print(f"Cropped check image found...")
         # Display the image and ask the user if it's valid
-        img = Image.open(folder / "crop_check.png")
-        img.show()
+        img = mpimg.imread(str(folder / "crop_check.png"))
+        plt.imshow(img)
+        plt.show(block=False) # added line to display the image using matplotlib
         valid = input("Are the detected ROIs valid? (y/n): ")
-        img.close()
+        plt.close() # added line to close the image window
         if valid.lower() == "n":
             remove = input("Do you want to remove the processed folder? (y/n): ")
             if remove.lower() == "y":
@@ -85,7 +88,7 @@ def process_data_folder(data_folder):
             or folder.name.endswith("_Checked")
         ):
             continue
-        source_folder_name = folder.stem.replace("_Cropped", "")
+        source_folder_name = folder.stem.replace("_Cropped", "_Recorded")
         source_folder = data_folder / source_folder_name
         print(f"Checking integrity of folder: {folder.name}")
         verified = check_integrity(folder, source_folder)
@@ -100,5 +103,3 @@ def process_data_folder(data_folder):
 
 
 process_data_folder("/home/matthias/Videos/")
-
-#TODO: Fix image sample not being closed after checking integrity
