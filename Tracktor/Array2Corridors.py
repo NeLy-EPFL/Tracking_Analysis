@@ -283,6 +283,9 @@ def process_folder(in_folder):
             subfolder = processedfolder / f"arena{j+1}" / f"corridor{k+1}"
             subfolder.mkdir(parents=True, exist_ok=True)
 
+    # Check if standard input is connected to a terminal
+    is_tty = os.isatty(sys.stdin.fileno())
+
     # Process the images in parallel using a process pool
     with ProcessPoolExecutor() as executor:
         results = list(
@@ -295,6 +298,7 @@ def process_folder(in_folder):
                     repeat(processedfolder),
                 ),
                 total=len(images),
+                disable=not is_tty,  # Disable the progress bar if not running in a terminal
             )
         )
 
