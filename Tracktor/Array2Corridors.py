@@ -313,3 +313,5 @@ if os.isatty(sys.stdin.fileno()):
     )
     if run_checkcrops.lower() == "y":
         subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])
+
+# TODO: Name _processing and Rename _Cropped AFTER cropping is done
