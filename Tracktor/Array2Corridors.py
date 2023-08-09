@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import shutil
 from itertools import repeat
 import subprocess
+import sys
+import os
 
 
 # Path definitions
@@ -301,8 +303,9 @@ def process_folder(in_folder):
 
 check_process(datafolder)
 
-run_checkcrops = input(
-    "Launch verification of processed folders integrity? (y/n): "
-)
-if run_checkcrops.lower() == "y":
-    subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])
+if os.isatty(sys.stdin.fileno()):
+    run_checkcrops = input(
+        "Launch verification of processed folders integrity? (y/n): "
+    )
+    if run_checkcrops.lower() == "y":
+        subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])

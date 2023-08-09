@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")"
 
 # activate the right conda environment
 source activate trackinganalysis

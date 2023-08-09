@@ -1,6 +1,8 @@
 from pathlib import Path
 from tqdm import tqdm
 import subprocess
+import os
+import sys
 
 data_folder = Path("/home/matthias/Videos/")
 output_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/")
@@ -64,11 +66,12 @@ for folder in data_folder.iterdir():
         new_output_folder = output_path / new_output_folder_name
         output_folder.rename(new_output_folder)
 
-run_checkcrops = input(
-    "Launch verification of processed folders integrity? (y/n): "
-)
-if run_checkcrops.lower() == "y":
-    subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
+if os.isatty(sys.stdin.fileno()):
+    run_checkcrops = input(
+        "Launch verification of processed folders integrity? (y/n): "
+    )
+    if run_checkcrops.lower() == "y":
+        subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
 
 #TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 
