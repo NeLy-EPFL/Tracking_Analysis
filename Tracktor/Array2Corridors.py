@@ -109,6 +109,17 @@ def process_folder(in_folder):
     # If it's not already, make it grayscale
     if len(frame.shape) > 2:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+    # Convert the folder name to lowercase
+    folder_name = str(folder).lower()
+
+    # Check if the folder name contains '_flip', 'rotatel' or 'rotater' and rotate the image accordingly
+    if '_flip' in folder_name:
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
+    elif 'rotatel' in folder_name:
+        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    elif 'rotater' in folder_name:
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
     # equalize the histogram to make thresholding easier
     frame = cv2.equalizeHist(frame)
