@@ -76,3 +76,5 @@ if os.isatty(sys.stdin.fileno()):
 #TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 
 #TODO : make the script run as a background process, always checking for non processed videos
+
+#TODO: solve folder duplication
