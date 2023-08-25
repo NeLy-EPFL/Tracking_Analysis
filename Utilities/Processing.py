@@ -5,18 +5,27 @@ from tqdm import tqdm
 
 # Compute low-pass filtered data
 
-def butter_lowpass_filter(
-    data,
-    cutoff,
-    order,
-):
-    # normal_cutoff = cutoff / nyq
+def butter_lowpass_filter(data, cutoff, order):
     # Get the filter coefficients
     b, a = signal.butter(order, cutoff, btype="low", analog=False)
+    # Apply the filter to the data
     y = signal.filtfilt(b, a, data)
+    
     return y
 
-#TODO: Add Savitzky-Golay filter
+
+
+def savgol_lowpass_filter(data, window_length, polyorder):
+    # Apply the Savitzky-Golay filter
+    y = signal.savgol_filter(data, window_length, polyorder)
+    return y
+
+def cheby1_lowpass_filter(data, cutoff, order, rp):
+    # Get the filter coefficients
+    b, a = signal.cheby1(order, rp, cutoff, btype='low', analog=False)
+    # Apply the filter to the data
+    y = signal.filtfilt(b, a, data)
+    return y
 
 # Compute bootstrapped confidence interval
 
