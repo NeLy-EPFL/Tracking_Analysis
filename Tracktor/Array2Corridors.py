@@ -29,11 +29,13 @@ def check_process(data_folder):
         if (
             folder.is_dir()
             and not folder.name.endswith("_Cropped")
+            and not folder.name.endswith("_Processing")
             and not folder.name.endswith("_Checked")
             and folder.name.endswith("_Recorded")
         ):
-            cropped_folder = folder.name + "_Cropped"
-            checked_folder = folder.name + "_Checked"
+            cropped_folder = folder.with_name(folder.stem.replace("_Recorded", "_Cropped"))
+            checked_folder = folder.with_name(folder.stem.replace("_Recorded", "_Checked"))
+            pending_folder = folder.with_name(folder.stem.replace("_Recorded", "_Processing"))
             cropped_folder_path = data_folder / cropped_folder
             checked_folder_path = data_folder / checked_folder
             if cropped_folder_path.exists():
@@ -43,6 +45,10 @@ def check_process(data_folder):
             elif checked_folder_path.exists():
                 print(
                     f"{folder.name} is already processed and its integrity is verified."
+                )
+            elif pending_folder.exists():
+                print(
+                    f"{folder.name} is currently being processed."
                 )
             else:
                 print(f"{folder.name} is not processed. Processing...")
@@ -100,7 +106,7 @@ def process_folder(in_folder):
     # Create a list of all the images in the target folder
     folder = inputfolder
     
-    processedfolder = inputfolder.with_name(inputfolder.stem.replace("_Recorded", "_Cropped"))
+    processedfolder = inputfolder.with_name(inputfolder.stem.replace("_Recorded", "_Processing"))
 
     # Create the subfolder if it doesn't exist
     processedfolder.mkdir(exist_ok=True)
@@ -301,11 +307,15 @@ def process_folder(in_folder):
                 disable=not is_tty,  # Disable the progress bar if not running in a terminal
             )
         )
-
-    print(f"Processing of {in_folder.name} finished!")
+        
+    # rename the processed folder from _processing to _Cropped
+    croppedfolder = processedfolder.with_name(processedfolder.stem.replace("_Processing", "_Cropped"))
+    processedfolder.rename(croppedfolder)
+    print(f"Processing of {in_folder.name} finished! Folder renamed to {croppedfolder.name}")
 
 
 check_process(datafolder)
+
 
 if os.isatty(sys.stdin.fileno()):
     run_checkcrops = input(
@@ -313,5 +323,3 @@ if os.isatty(sys.stdin.fileno()):
     )
     if run_checkcrops.lower() == "y":
         subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])
-
-# TODO: Name _processing and Rename _Cropped AFTER cropping is done

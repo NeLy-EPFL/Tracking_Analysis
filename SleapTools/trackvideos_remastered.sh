@@ -37,6 +37,13 @@ for subdir in $subdirs; do
     fi
 done
 
+# Set path to python script
+python_script="/home/matthias/Tracking_Analysis/Tracktor/CheckTracks.py"
+
+# Run python script
+python $python_script
+
+
 
 
 #TODO : make the script loop over all files. 

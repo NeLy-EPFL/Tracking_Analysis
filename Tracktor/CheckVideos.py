@@ -67,16 +67,14 @@ def process_data_folder(data_folder, source_data_folder):
             print(f"Folder {folder.name} is verified.")
             print(f"Folder renamed to: {new_name}")
             
-            # Prompt user to remove original image folder
-            remove_images = input(f"Do you want to remove the original image folder for {folder.name}? (y/n): ")
-            if remove_images.lower() == 'y':
-                image_folder_name = folder.name.replace('_Videos', '_Cropped_Checked')
-                image_folder = source_data_folder / image_folder_name
-                if image_folder.exists() and image_folder.is_dir():
-                    print(f"Removing original image folder: {image_folder.as_posix()}")
-                    shutil.rmtree(image_folder)
+            image_folder_name = folder.name.replace('_Videos', '_Cropped_Checked')
+            image_folder = source_data_folder / image_folder_name
+            if image_folder.exists() and image_folder.is_dir():
+                print(f"Removing original image folder: {image_folder.as_posix()}")
+                shutil.rmtree(image_folder)
         else:
             print(f"Folder {folder.name} is not verified.")
+            new_name = f"{folder}_NotChecked"
 
 
 source_data_folder = Path('/home/matthias/Videos/') 

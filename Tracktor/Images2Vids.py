@@ -58,7 +58,11 @@ for folder in data_folder.iterdir():
         print(f"Processing folder: {folder.name}")
         output_folder_name = folder.name.replace("_Cropped_Checked", "")
         output_folder = output_path / f"{output_folder_name}"
-        output_folder.mkdir(exist_ok=True)
+        if not output_folder.exists():
+            print(f"Error: Folder not found: {output_folder.name()}")
+            continue
+        processing_output_folder = output_path / f"{output_folder_name}_Processing"
+        output_folder.rename(processing_output_folder)
         search_folder_for_images(folder, output_folder, fps)
         # Rename the output folder after all videos have been created
         print(f"Processing of {folder.name} complete.")
@@ -66,15 +70,13 @@ for folder in data_folder.iterdir():
         new_output_folder = output_path / new_output_folder_name
         output_folder.rename(new_output_folder)
 
-if os.isatty(sys.stdin.fileno()):
-    run_checkcrops = input(
-        "Launch verification of processed folders integrity? (y/n): "
-    )
-    if run_checkcrops.lower() == "y":
-        subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
+subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
 
 #TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 
 #TODO : make the script run as a background process, always checking for non processed videos
 
 #TODO: solve folder duplication
+#TODO : auto check instead of asking for input
+
+#TODO : Solve the issue where two folders are created
