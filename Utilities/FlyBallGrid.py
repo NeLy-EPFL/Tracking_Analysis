@@ -10,14 +10,14 @@ def get_video_size(video_path):
     Parameters
     ----------
     video_path : Path
-    The path to the video file.
+        The path to the video file.
 
     Returns
     -------
     width : int
-    The width of the video.
+        The width of the video.
     height : int
-    The height of the video.
+        The height of the video.
 
     Returns None if there was an error.
     """
@@ -70,11 +70,11 @@ def create_grid_video(input_folder, output_path, keyword):
     Parameters
     ----------
     input_folder : Path
-    The path to the folder containing the input videos.
+        The path to the folder containing the input videos.
     output_path : Path
-    The path to the output video.
+        The path to the output video.
     keyword : str
-    The keyword to use to find the input videos.
+        The keyword to use to find the input videos.
 
     Returns
     -------
