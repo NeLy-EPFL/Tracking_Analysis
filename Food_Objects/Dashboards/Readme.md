@@ -1,0 +1,3 @@
+This folder contains code designed to generate interactive dashboards with the data from the Food objects project. Dashboards are combinations of holoviews plots and Panel library, and can be either saved as html files or served as web apps.
+
+> Note that depending on how many possible plots are generated in the dashboard, the resulting html file can be heavy and long to generate. It is recommended to use the web app to explore the dashboard in its early versions and only save the html file when the dashboard is in a publishable state.
