@@ -1,1 +1,10 @@
-This folder contains tracking and analysis scripts used in the ball pushing project. It is organized in two subdirectories, one for experiments performed using the Optobot, and one for experiments performed using the Multimaze recorder.
+
+### Optobot
+
+Processing scripts include opencv based ball tracking algorithms and corridors cropping methods.
+
+Analysis scripts include ball trajectory analysis, which use tracked ball position to reveal pushing dynamics and 'replacing' events where the experimenter replace the ball at initial position using a magnet.
+
+### MazeRecorder
+
+Processing scripts include 
