@@ -1,0 +1,1 @@
+This folder contains tracking and analysis scripts used in the ball pushing project. It is organized in two subdirectories, one for experiments performed using the Optobot, and one for experiments performed using the Multimaze recorder.

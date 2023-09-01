@@ -2,11 +2,25 @@ import cv2
 from pathlib import Path
 
 def extract_frame(video_path, frame_index, output_path):
+    """Extract a single frame from a video file and save it as a PNG image.
+    Arguments:
+        video_path: Path to the video file.
+        frame_index: Index of the frame to extract.
+        output_path: Path to save the output image.
+        
+        Returns:
+            None        
+    """
     # Open the video file
     cap = cv2.VideoCapture(video_path)
 
     # Set the position of the video to the desired frame
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+    
+    # Check if the frame_index is valid, i.e. if it is within the bounds of the video
+    if frame_index < 0 or frame_index >= cap.get(cv2.CAP_PROP_FRAME_COUNT):
+        print('Error: Invalid frame index')
+        return
 
     # Read the frame from the video
     ret, frame = cap.read()
