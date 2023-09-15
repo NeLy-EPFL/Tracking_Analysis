@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 # Set the input folder path
-input_folder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/GridClipsRotated/")
+input_folder = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_rotated")
 # Get all video files from the input folder
 input_files = list(input_folder.glob("*clip*.mp4"))
 num_black_frames = 10

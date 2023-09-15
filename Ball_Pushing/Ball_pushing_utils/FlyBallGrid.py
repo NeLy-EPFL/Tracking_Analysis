@@ -154,6 +154,6 @@ def create_grid_video(input_folder, output_path, keyword=None):
 # Example usage:
 create_grid_video(
     input_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_rotated",
-    output_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_grid_rotated.mp4",
-    keyword="clip",
+    output_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_grid_rotated_black.mp4",
+    #keyword="black_clip",
 )
