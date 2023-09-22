@@ -138,9 +138,9 @@ print(DataPath)
 Folders = []
 for folder in DataPath.iterdir():
     minfolder = str(folder).lower()
-    if "tnt" in minfolder and "tracked" in minfolder and "pm" in minfolder:
+    # if "tnt" in minfolder and "tracked" in minfolder and "pm" in minfolder:
+    if "feedingstate" in minfolder and "tracked" in minfolder:
         # Only use the folders that have 'feedingstate' and 'tracked' but not 'dark' in the name
-        # if "feedingstate" in minfolder and "tracked" in minfolder and "dark" not in minfolder:
         Folders.append(folder)
 
 Folders
@@ -273,7 +273,11 @@ def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, threshold=10)
     print(f"Finished processing {vidname}!")
 
 
-SaveFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/TNT_BallPushing_Events")
+SaveFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/WildType_BallPushing_Events")
+
+# Folders = [
+#     Folders[0]
+# ]  # Troubleshooting with only one folder, comment out to run the whole list
 
 for folder in Folders:
     print(f"Processing {folder}...")
@@ -294,7 +298,13 @@ for folder in Folders:
         for var in variables:
             metadata_dict[var] = {k.lower(): v for k, v in metadata_dict[var].items()}
         print(metadata_dict)
-    for file in folder.glob("**/*.mp4"):
+
+        files = list(folder.glob("**/*.mp4"))
+        # files = [
+        #     files[0]
+        # ]  # Troubleshooting with only one video, comment out to run the whole folder
+
+    for file in files:
         print(file.name)
         # Get the arena and corridor numbers from the parent (corridor) and grandparent (arena) folder names
         arena = file.parent.parent.name
@@ -309,6 +319,10 @@ for folder in Folders:
         Date = metadata_dict["Date"][arena]
         # print(f"Date: {Date} for arena {arena}")
 
+        Light = metadata_dict["Light"][arena]
+        FeedingState = metadata_dict["FeedingState"][arena]
+        Period = metadata_dict["Period"][arena]
+
         dir = file.parent
 
         # Define flypath as the *flytrack*.analysis.h5 file in the same folder as the video
@@ -321,11 +335,13 @@ for folder in Folders:
         print(ballpath.name)
         vidpath = file
 
+        Dir = f"{Genotype}_{Date}_Light_{Light}_{FeedingState}_{Period}"
+
         # Define the output folder as a directory in SaveFolder with same name as Genotype. If it doesn't exist, create it.
-        OutFolder = SaveFolder / Genotype
+        OutFolder = SaveFolder / Dir
         OutFolder.mkdir(exist_ok=True)
 
-        vidname = f"{Genotype}_{Date}_{arena}_{corridor}"
+        vidname = f"{Genotype}_{Date}_Light_{Light}_{FeedingState}_{Period}_{arena}_{corridor}"
 
         # Check if the video has already been processed
         if not OutFolder.joinpath(f"{vidname}.mp4").exists():
