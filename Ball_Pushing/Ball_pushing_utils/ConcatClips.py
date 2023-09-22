@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import sys
+import traceback
 
 sys.path.insert(0, "../..")
 # from Utilities.Utils import *
@@ -346,7 +347,19 @@ for folder in Folders:
         # Check if the video has already been processed
         if not OutFolder.joinpath(f"{vidname}.mp4").exists():
             print(f"Processing {vidname}...")
-            process_videos(ballpath, flypath, vidpath, OutFolder, vidname=vidname)
+            try:
+                process_videos(ballpath, flypath, vidpath, OutFolder, vidname=vidname)
+            except Exception as e:
+                error_message = str(e)
+                traceback_message = traceback.format_exc()
+                print(f"Error processing video {vidname}: {error_message}")
+                print(traceback_message)
+
+                # Write the error to a file
+                with open(f"{vidname}_error.txt", "w") as error_file:
+                    error_file.write(
+                        f"Error processing video {vidname}:\n{error_message}\n{traceback_message}"
+                    )
 
         else:
             print(f"{vidname} already exists! Skipping...")
