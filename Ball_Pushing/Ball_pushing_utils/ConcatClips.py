@@ -363,3 +363,6 @@ for folder in Folders:
 
         else:
             print(f"{vidname} already exists! Skipping...")
+
+# TODO: Handle the new error found in 230922_PushingEventsVideos_3.txt
+
