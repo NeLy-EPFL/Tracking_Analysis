@@ -2,6 +2,8 @@ import datetime
 import numpy as np
 import pandas as pd
 from traceback import format_tb
+import requests
+import os
 
 def checksave(path, object, file):
     """Checks if a file exists and asks the user if they want to overwrite it.
@@ -123,3 +125,11 @@ def add_note(path, note):
         with open(path.parent.joinpath('notes.txt').as_posix(), "w") as f:
             f.write(note+'\n')
         print('note file created')
+        
+def notify_me():
+    """Sends a notification to my phone when a script is done running"""
+    ifttt_url = os.getenv('IFTTT_URL')
+    if ifttt_url is not None:
+        requests.post(ifttt_url)
+    else:
+        print("IFTTT_URL environment variable not set.")

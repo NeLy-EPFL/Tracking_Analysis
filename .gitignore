@@ -197,3 +197,6 @@ Ball_Pushing/Ball_pushing_utils/230922_PushingEventsVideos_2.txt
 Ball_Pushing/Ball_pushing_utils/230922_PushingEventsVideos_3.txt
 Ball_Pushing/Ball_pushing_utils/230922_PushingEventsVideos.txt
 Ball_Pushing/Optobot/Analysis/geckodriver.log
+Utilities/__pycache__/__init__.cpython-310.pyc
+Utilities/__pycache__/Processing.cpython-310.pyc
+Utilities/__pycache__/Utils.cpython-310.pyc
