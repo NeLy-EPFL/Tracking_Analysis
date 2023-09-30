@@ -5,17 +5,18 @@ from traceback import format_tb
 import requests
 import os
 
+
 def checksave(path, object, file):
     """Checks if a file exists and asks the user if they want to overwrite it.
     Arguments:
         file: string. The name of the file to be saved.
         object: string. The kind of the file to be saved. will adapt the format to be used
-            Currently, supported objects are: 
-            > "parameter" : numpy array or list to be saved as .npy 
+            Currently, supported objects are:
+            > "parameter" : numpy array or list to be saved as .npy
             > "dataframe" : pandas dataframe to be saved as .feather
     """
     # check if provided path is a pathlib Path object
-    
+
     try:
         if object == "parameter":
             if path.exists() is True:
@@ -33,7 +34,7 @@ def checksave(path, object, file):
 
             else:
                 np.save(path, file)
-            
+
         elif object == "dataframe":
             if path.exists() is True:
                 choice = input("File already exists! Overwrite? [y/n]")
@@ -50,9 +51,10 @@ def checksave(path, object, file):
 
             else:
                 file.to_feather(path)
-        
-        else: print("Invalid object type")
-    
+
+        else:
+            print("Invalid object type")
+
     except AttributeError as err:
         raise AttributeError("path argument must be a pathlib object")
 
@@ -70,46 +72,46 @@ def frame2time(time, fps, reverse=False, clockformat=False):
 
     """
     if reverse is False:
-
         if clockformat is False:
-
             try:
                 timestamp = round(time / fps)
-                print (timestamp)
+                print(timestamp)
             except TypeError:
-                print('Wrong variable type entered. Provide integers values.')
-
+                print("Wrong variable type entered. Provide integers values.")
 
         else:
             try:
-                s = time/fps
+                s = time / fps
                 hours, remainder = divmod(s, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 timestamp = (int(hours), int(minutes), round(seconds))
-                print('%s:%s:%s' %(timestamp[0], timestamp[1], timestamp[2]))
+                print("%s:%s:%s" % (timestamp[0], timestamp[1], timestamp[2]))
             except TypeError:
-                print('Wrong variable type entered. Provide integers values.')
+                print("Wrong variable type entered. Provide integers values.")
 
     else:
         if clockformat is False:
-
             try:
                 timestamp = round(time * fps)
-                print (timestamp)
+                print(timestamp)
             except TypeError:
-                print('Wrong variable type entered. Provide integers values.')
+                print("Wrong variable type entered. Provide integers values.")
 
         else:
-
             try:
-                transtime = datetime.datetime.strptime(time, '%H:%M:%S')
-                timestamp = ((transtime.hour * 3600) + (transtime.minute * 60) + transtime.second) * fps
-                print (timestamp)
+                transtime = datetime.datetime.strptime(time, "%H:%M:%S")
+                timestamp = (
+                    (transtime.hour * 3600) + (transtime.minute * 60) + transtime.second
+                ) * fps
+                print(timestamp)
             except TypeError:
-                print('Wrong variable type entered. Provide a string with "%Hours:%Minutes:%Seconds" format.')
+                print(
+                    'Wrong variable type entered. Provide a string with "%Hours:%Minutes:%Seconds" format.'
+                )
 
     return timestamp
+
 
 def add_note(path, note):
     """Adds a note to a file or update an existing note.
@@ -118,18 +120,25 @@ def add_note(path, note):
         note: string. The note to be added to the file
     """
     if path.parent.joinpath("notes.txt").exists():
-        with open(path.parent.joinpath('notes.txt').as_posix(), 'a') as f:
-            f.write(note+'\n')
-        print('note file updated')
+        with open(path.parent.joinpath("notes.txt").as_posix(), "a") as f:
+            f.write(note + "\n")
+        print("note file updated")
     else:
-        with open(path.parent.joinpath('notes.txt').as_posix(), "w") as f:
-            f.write(note+'\n')
-        print('note file created')
-        
+        with open(path.parent.joinpath("notes.txt").as_posix(), "w") as f:
+            f.write(note + "\n")
+        print("note file created")
+
+
 def notify_me():
-    """Sends a notification to my phone when a script is done running"""
-    ifttt_url = os.getenv('IFTTT_URL')
+    """Sends a notification to your phone when a script is done running.
+    it works with IFTTT android app and a webhook trigger. More information on how to set this up is available here:
+    https://github.com/DrGFreeman/IFTTT-Webhook
+
+    """
+    ifttt_url = os.getenv("IFTTT_URL")
     if ifttt_url is not None:
         requests.post(ifttt_url)
     else:
-        print("IFTTT_URL environment variable not set.")
+        print(
+            'IFTTT_URL environment variable not set. You can set it up using the following command: \n export IFTTT_URL="https://maker.ifttt.com/trigger/{event}/with/key/{your-IFTTT-key}" Note that you need to replace {event} and {your-IFTTT-key} with your own values. If you want to permanently set this variable, you can add the line above to your .bashrc or .zshrc file.'
+        )
