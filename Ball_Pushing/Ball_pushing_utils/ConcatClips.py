@@ -7,8 +7,10 @@ import sys
 import traceback
 
 sys.path.insert(0, "../..")
-# from Utilities.Utils import *
-# from Utilities.Processing import *
+from Utilities.Utils import *
+from Utilities.Processing import *
+from Utilities.Ballpushing_utils import *
+
 import cv2
 from datetime import timedelta
 import platform
@@ -17,108 +19,6 @@ import json
 import os
 
 os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"  # Replace with your actual path
-
-
-def savgol_lowpass_filter(data, window_length, polyorder):
-    # Apply the Savitzky-Golay filter
-    y = signal.savgol_filter(data, window_length, polyorder)
-    return y
-
-
-def extract_coordinates(h5_file):
-    with h5py.File(h5_file, "r") as f:
-        locs = f["tracks"][:].T
-        y = locs[:, :, 1, :].squeeze()
-        x = locs[:, :, 0, :].squeeze()
-    return x, y
-
-
-def replace_nans_with_previous_value(arr):
-    # Find the indices of the NaN values
-    nan_indices = np.where(np.isnan(arr))
-
-    # Replace the NaN values with the previous value
-    for i in nan_indices[0]:
-        arr[i] = arr[i - 1]
-
-
-def extract_interaction_events(ballpath, flypath, Thresh=80, min_time=60):
-    """
-    Extracts the interaction events from the ball and fly paths.
-
-    Parameters
-    ----------
-    ballpath : str
-        The path to the ball path file.
-        flypath : str
-        The path to the fly path file.
-        Thresh : int
-        The threshold distance between the ball and fly.
-        min_time : int
-        The minimum duration of an interaction event.
-
-        Returns
-        -------
-        interaction_events : list
-        A list of DataFrames containing the interaction events.
-    """
-    xball, yball = extract_coordinates(ballpath.as_posix())
-    xfly, yfly = extract_coordinates(flypath.as_posix())
-
-    # Replace NaNs in yball
-    replace_nans_with_previous_value(yball)
-
-    # Replace NaNs in xball
-    replace_nans_with_previous_value(xball)
-
-    # Replace NaNs in yfly
-    replace_nans_with_previous_value(yfly)
-
-    # Replace NaNs in xfly
-    replace_nans_with_previous_value(xfly)
-
-    # Combine the yball and yfly arrays into a single 2D array
-    data = np.stack((yball, yfly), axis=1)
-
-    # Create a pandas DataFrame from the data
-    df = pd.DataFrame(data, columns=["yball", "yfly"])
-
-    df["yball_smooth"] = savgol_lowpass_filter(df["yball"], 221, 1)
-    df["yfly_smooth"] = savgol_lowpass_filter(df["yfly"], 221, 1)
-    df = df.assign(Frame=df.index + 1)
-    df["time"] = df["Frame"] / 30
-
-    # Compute the difference between the yball and yfly positions smoothed
-    df["dist"] = df["yfly_smooth"] - df["yball_smooth"]
-
-    # Locate where the distance is below the threshold
-    df["close"] = df["dist"] < Thresh
-
-    df = df.reset_index()
-
-    # Find the start and end indices of streaks of True values in the 'close' column
-    df["block"] = (df["close"].shift(1) != df["close"]).cumsum()
-    events = (
-        df[df["close"]]
-        .groupby("block")
-        .agg(start=("index", "min"), end=("index", "max"))
-    )
-
-    # Store the interaction events as separate DataFrames
-    interaction_events = [
-        df.loc[start:end]
-        for start, end in events[["start", "end"]].itertuples(index=False)
-    ]
-
-    # remove events that are less than min_time frames long
-    interaction_events = [
-        event for event in interaction_events if len(event) >= min_time
-    ]
-
-    # event_times = [(df["time"].min(), df["time"].max()) for df in interaction_events]
-
-    return interaction_events
-
 
 # Get the DataFolder
 
@@ -327,13 +227,33 @@ for folder in Folders:
         dir = file.parent
 
         # Define flypath as the *flytrack*.analysis.h5 file in the same folder as the video
-        flypath = list(dir.glob("*flytrack*.analysis.h5"))[0]
+        try:
+            flypath = list(dir.glob("*flytrack*.analysis.h5"))[0]
+            print(flypath.name)
+        except IndexError:
+            print(f"No fly tracking file found for {file.name}, skipping...")
+            # Define the error file path
+            error_file_path = file.parent / "error.txt"
+            # Open the error file in append mode ('a')
+            with open(error_file_path, "a") as error_file:
+                # Write the error message to the file
+                error_file.write(f"No fly tracking file found for {file.name}\n")
+            continue
 
-        # flypath = file.parent / f"flytrack.000_{corridor}.analysis.h5"
-        print(flypath.name)
         # Define ballpath as the *tracked*.analysis.h5 file in the same folder as the video
-        ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
-        print(ballpath.name)
+        try:
+            ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
+            print(ballpath.name)
+        except IndexError:
+            print(f"No ball tracking file found for {file.name}, skipping...")
+            # Define the error file path
+            error_file_path = file.parent / "error.txt"
+            # Open the error file in append mode ('a')
+            with open(error_file_path, "a") as error_file:
+                # Write the error message to the file
+                error_file.write(f"No ball tracking file found for {file.name}\n")
+            continue
+
         vidpath = file
 
         Dir = f"{Genotype}_{Date}_Light_{Light}_{FeedingState}_{Period}"
@@ -355,14 +275,15 @@ for folder in Folders:
                 print(f"Error processing video {vidname}: {error_message}")
                 print(traceback_message)
 
-                # Write the error to a file
-                with open(f"{vidname}_error.txt", "w") as error_file:
-                    error_file.write(
-                        f"Error processing video {vidname}:\n{error_message}\n{traceback_message}"
-                    )
+            # Define the error file path
+            error_file_path = file.parent / f"{vidname}_error.txt"
+
+            # Open the error file in append mode ('a')
+            with open(error_file_path, "a") as error_file:
+                # Write the error message to the file
+                error_file.write(
+                    f"Error processing video {vidname}: \n Most likely, no events were detected -> Fly could be dead. \n Error message:{error_message}\n{traceback_message}\n"
+                )
 
         else:
             print(f"{vidname} already exists! Skipping...")
-
-# TODO: Handle the new error found in 230922_PushingEventsVideos_3.txt
-
