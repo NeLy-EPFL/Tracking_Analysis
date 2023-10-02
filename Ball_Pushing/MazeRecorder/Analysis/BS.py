@@ -24,7 +24,7 @@ GroupOps = Dataset.groupby(
 Confints = GroupOps["yball_relative_SG"].apply(lambda x: draw_bs_ci(x, n_reps=300))
 
 
-
-Confints.to_feather(DataPath / "230928_Confints.feather")
+Confints_df = Confints.to_frame()
+Confints_df.to_feather(DataPath / "230928_Confints.feather")
 
 notify_me()
