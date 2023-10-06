@@ -6,7 +6,10 @@ from pathlib import Path
 import sys
 import traceback
 
+sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
+sys.path.insert(0, "../../..")
+
 from Utilities.Utils import *
 from Utilities.Processing import *
 from Utilities.Ballpushing_utils import *
@@ -47,15 +50,18 @@ for folder in DataPath.iterdir():
 Folders
 
 
-def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, threshold=10):
+def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, event_type="pauses"):
     def check_yball_variation(event_df, threshold=10):
         yball_segment = event_df["yball_smooth"]
         variation = yball_segment.max() - yball_segment.min()
         return variation > threshold
 
-    interaction_events = extract_interaction_events(ballpath, flypath)
+    if event_type == "interactions":
+        events = extract_interaction_events(ballpath, flypath)
+    elif event_type == "pauses":
+        events = extract_pauses(flypath)
     clips = []
-    for i, event_df in enumerate(interaction_events):
+    for i, event_df in enumerate(events):
         start_frame, end_frame = event_df["Frame"].min(), event_df["Frame"].max()
         start_time, end_time = (
             event_df["time"].min(),
@@ -110,29 +116,36 @@ def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, threshold=10)
                 cv2.LINE_AA,
             )
 
-            # Check if yball value varies more than threshold
-            if check_yball_variation(event_df):  # You need to implement this function
-                # Add red dot to segment
-                dot = np.zeros((10, 10, 3), dtype=np.uint8)
-                dot[:, :, 0] = 0
-                dot[:, :, 1] = 0
-                dot[:, :, 2] = 255
-                dot = cv2.resize(dot, (20, 20))
+            if event_type == "interactions":
+                # Check if yball value varies more than threshold
+                if check_yball_variation(
+                    event_df
+                ):  # You need to implement this function
+                    # Add red dot to segment
+                    dot = np.zeros((10, 10, 3), dtype=np.uint8)
+                    dot[:, :, 0] = 0
+                    dot[:, :, 1] = 0
+                    dot[:, :, 2] = 255
+                    dot = cv2.resize(dot, (20, 20))
 
-                # Position the dot right next to the text at the top of the frame
-                dot_x = (
-                    text_x + text_size[0] + 10
-                )  # Position the dot right next to the text with a margin of 10
+                    # Position the dot right next to the text at the top of the frame
+                    dot_x = (
+                        text_x + text_size[0] + 10
+                    )  # Position the dot right next to the text with a margin of 10
 
-                # Adjusted position for dot_y to make it slightly higher
-                dot_y_adjustment_factor = 1.2
-                dot_y = (
-                    text_y
-                    - int(dot.shape[0] * dot_y_adjustment_factor)
-                    + text_size[1] // 2
-                )
+                    # Adjusted position for dot_y to make it slightly higher
+                    dot_y_adjustment_factor = 1.2
+                    dot_y = (
+                        text_y
+                        - int(dot.shape[0] * dot_y_adjustment_factor)
+                        + text_size[1] // 2
+                    )
 
-                frame[dot_y : dot_y + dot.shape[0], dot_x : dot_x + dot.shape[1]] = dot
+                    frame[
+                        dot_y : dot_y + dot.shape[0], dot_x : dot_x + dot.shape[1]
+                    ] = dot
+            else:
+                pass
 
             # Write the frame into the output file
             out.write(frame)
@@ -174,11 +187,11 @@ def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, threshold=10)
     print(f"Finished processing {vidname}!")
 
 
-SaveFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/WildType_BallPushing_Events")
+SaveFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/TNT_Pauses")
 
-# Folders = [
-#     Folders[0]
-# ]  # Troubleshooting with only one folder, comment out to run the whole list
+Folders = [
+    Folders[0]
+]  # Troubleshooting with only one folder, comment out to run the whole list
 
 for folder in Folders:
     print(f"Processing {folder}...")
@@ -201,9 +214,9 @@ for folder in Folders:
         print(metadata_dict)
 
         files = list(folder.glob("**/*.mp4"))
-        # files = [
-        #     files[0]
-        # ]  # Troubleshooting with only one video, comment out to run the whole folder
+        files = [
+            files[0]
+        ]  # Troubleshooting with only one video, comment out to run the whole folder
 
     for file in files:
         print(file.name)
