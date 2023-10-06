@@ -31,12 +31,16 @@ def replace_nans_with_previous_value(arr):
         arr[i] = arr[i - 1]
 
 
-def generate_dataset(Folders, fly=True, ball=True, xvals=False):
+def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
 
 
     Args:
         Folders (list): A list of folders containing videos, tracking files and metadata files
+        fly (bool, optional): Whether to extract the fly coordinates. Defaults to True.
+        ball (bool, optional): Whether to extract the ball coordinates. Defaults to True.
+        xvals (bool, optional): Whether to extract the x coordinates. Defaults to False.
+        fps (int, optional): The frame rate of the videos. Defaults to 30.
 
     Returns:
         Dataset (pandas dataframe): A dataframe containing the data from all the videos in the list of folders
@@ -105,17 +109,18 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False):
                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
                 )
                 #print(data.head())
-                # Apply savgol_lowpass_filter to each column
+                # Apply savgol_lowpass_filter to each column that is not Frame or time
                 for col in data.columns:
-                    data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
-
+                    if col not in ["Frame", "time"]:
+                        data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
+                    
                 data["start"] = start
                 data["end"] = end
                 data["arena"] = arena
                 data["corridor"] = corridor
                 Flycount += 1
                 data["Fly"] = f"Fly {Flycount}"
-
+                
                 # Compute yball_relative relative to start
                 data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
 
@@ -143,7 +148,7 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False):
     return Dataset
 
 
-def get_coordinates(ballpath, flypath, ball=True, fly=True, xvals=False):
+def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=False):
     """Extracts the coordinates from the ball and fly paths.
 
     Parameters:
@@ -195,6 +200,10 @@ def get_coordinates(ballpath, flypath, ball=True, fly=True, xvals=False):
 
     # Convert the 2D array into a DataFrame
     data = pd.DataFrame(data, columns=columns)
+    
+    data = data.assign(Frame=data.index + 1)
+
+    data["time"] = data["Frame"] / 30
 
     return data
 
@@ -229,8 +238,8 @@ def extract_interaction_events(
 
     df["yball_smooth"] = savgol_lowpass_filter(df["yball"], 221, 1)
     df["yfly_smooth"] = savgol_lowpass_filter(df["yfly"], 221, 1)
-    df = df.assign(Frame=df.index + 1)
-    df["time"] = df["Frame"] / 30
+    #df = df.assign(Frame=df.index + 1)
+    #df["time"] = df["Frame"] / 30
 
     # Compute the difference between the yball and yfly positions smoothed
     df["dist"] = df["yfly_smooth"] - df["yball_smooth"]
@@ -272,14 +281,14 @@ def extract_interaction_events(
         return interaction_events
 
 
-def extract_pauses(flypath, min_time=300, threshold=0.05):
+def extract_pauses(source, min_time=300, threshold_y=0.05, threshold_x=0.05):
     """
     Extracts the pause events from the fly path.
 
     Parameters
     ----------
-    flypath : str
-        The path to the fly path file.
+    source : pathlib Path, str or pandas DataFrame
+        The path to the fly path file or a DataFrame containing the fly positions
     min_time : int
         The minimum duration of a pause event.
     threshold : float
@@ -290,31 +299,29 @@ def extract_pauses(flypath, min_time=300, threshold=0.05):
     pause_events : list
         A list of DataFrames containing the pause events.
     """
-    xfly, yfly = extract_coordinates(flypath.as_posix())
-
-    # Replace NaNs in yfly
-    replace_nans_with_previous_value(yfly)
-
-    # Replace NaNs in xfly
-    replace_nans_with_previous_value(xfly)
-
-    # Combine the yfly array into a single 2D array
-    data = np.stack((yfly,), axis=1)
-
-    # Create a pandas DataFrame from the data
-    df = pd.DataFrame(data, columns=["yfly"])
+    
+    if isinstance(source, Path):
+        df = get_coordinates(flypath = source.as_posix(), ball=False)
+        
+    elif isinstance(source, str):
+        df = get_coordinates(flypath = source, ball=False)
+        
+    elif isinstance(source, pd.DataFrame):
+        df = source
+    else:
+        raise TypeError("Invalid source format: source must be a Path or DataFrame")
 
     df["yfly_smooth"] = savgol_lowpass_filter(df["yfly"], 221, 1)
+    df["xfly_smooth"] = savgol_lowpass_filter(df["xfly"], 221, 1)
 
-    df = df.assign(Frame=df.index + 1)
-
-    df["time"] = df["Frame"] / 30
+    
 
     # Compute the absolute difference in yfly_smooth values
     df["yfly_diff"] = df["yfly_smooth"].diff().abs()
+    df["xfly_diff"] = df["xfly_smooth"].diff().abs()
 
     # Identify periods where the difference is less than threshold for at least min_time frames
-    df["Pausing"] = (df["yfly_diff"] < threshold).rolling(min_time).sum() == min_time
+    df["Pausing"] = ((df["yfly_diff"] < threshold_y) & df['xfly_diff'] < threshold_x).rolling(min_time).sum() == min_time
 
     # Replace NaN values with False
     df["Pausing"].fillna(False, inplace=True)
