@@ -5,14 +5,12 @@ from pathlib import Path
 import sys
 import traceback
 import json
+import datetime
 
 sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
 from Utilities.Utils import *
 from Utilities.Processing import *
-
-from datetime import timedelta
-
 
 def extract_coordinates(h5_file):
     with h5py.File(h5_file, "r") as f:
@@ -110,9 +108,9 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                 )
                 #print(data.head())
                 # Apply savgol_lowpass_filter to each column that is not Frame or time
-                for col in data.columns:
-                    if col not in ["Frame", "time"]:
-                        data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
+                # for col in data.columns:
+                #     if col not in ["Frame", "time"]:
+                #         data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
                     
                 data["start"] = start
                 data["end"] = end
@@ -204,6 +202,15 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
     data = data.assign(Frame=data.index + 1)
 
     data["time"] = data["Frame"] / 30
+    
+    if ball:
+        data["yball_smooth"] = savgol_lowpass_filter(data["yball"], 221, 1)
+        if xvals:
+            data["xball_smooth"] = savgol_lowpass_filter(data["xball"], 221, 1)
+    if fly:
+        data["yfly_smooth"] = savgol_lowpass_filter(data["yfly"], 221, 1)
+        if xvals:
+            data["xfly_smooth"] = savgol_lowpass_filter(data["xfly"], 221, 1)
 
     return data
 
@@ -281,7 +288,7 @@ def extract_interaction_events(
         return interaction_events
 
 
-def extract_pauses(source, min_time=300, threshold_y=0.05, threshold_x=0.05):
+def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     """
     Extracts the pause events from the fly path.
 
@@ -301,27 +308,26 @@ def extract_pauses(source, min_time=300, threshold_y=0.05, threshold_x=0.05):
     """
     
     if isinstance(source, Path):
-        df = get_coordinates(flypath = source.as_posix(), ball=False)
+        print(f'Path: {source}')
+        df = get_coordinates(flypath = source, ball=False, xvals=True)
         
     elif isinstance(source, str):
-        df = get_coordinates(flypath = source, ball=False)
+        print(f'String: {source}')
+        df = get_coordinates(flypath = source, ball=False, xvals=True)
         
     elif isinstance(source, pd.DataFrame):
+        print(f'DataFrame: {source.shape}')
         df = source
     else:
-        raise TypeError("Invalid source format: source must be a Path or DataFrame")
-
-    df["yfly_smooth"] = savgol_lowpass_filter(df["yfly"], 221, 1)
-    df["xfly_smooth"] = savgol_lowpass_filter(df["xfly"], 221, 1)
-
-    
+        raise TypeError("Invalid source format: source must be a pathlib Path, string or a pandas DataFrame")
 
     # Compute the absolute difference in yfly_smooth values
     df["yfly_diff"] = df["yfly_smooth"].diff().abs()
     df["xfly_diff"] = df["xfly_smooth"].diff().abs()
 
     # Identify periods where the difference is less than threshold for at least min_time frames
-    df["Pausing"] = ((df["yfly_diff"] < threshold_y) & df['xfly_diff'] < threshold_x).rolling(min_time).sum() == min_time
+    df["Pausing"] = ((df["yfly_diff"] < threshold_y) #& df['xfly_diff'] < threshold_x
+                     ).rolling(min_time).sum() == min_time
 
     # Replace NaN values with False
     df["Pausing"].fillna(False, inplace=True)
@@ -332,16 +338,17 @@ def extract_pauses(source, min_time=300, threshold_y=0.05, threshold_x=0.05):
     # Filter rows where 'Pausing' is True
     pauses = df[df["Pausing"] == True]
 
-    # Group by 'PauseGroup' and get the first and last frame of each pause event
-    pause_groups = pauses.groupby("PauseGroup")["Frame"].agg(["first", "last"])
-
-    # Reset the index of the DataFrame
-    pause_groups.reset_index(drop=True, inplace=True)
-
     # Store the pause events as separate DataFrames
-    pause_events = [
-        df.loc[start:end]
-        for start, end in pause_groups[["first", "last"]].itertuples(index=False)
-    ]
+    pause_events = [group for _, group in pauses.groupby("PauseGroup")]
+
+    # Group by 'PauseGroup' and get the first and last frame of each pause event
+    pause_groups = pauses.groupby("PauseGroup")["time"].agg(["first", "last"])
+
+    # Convert 'first' and 'last' columns to datetime format
+    pause_groups['first'] = pd.to_datetime(pause_groups['first'], unit='s').dt.time
+    pause_groups['last'] = pd.to_datetime(pause_groups['last'], unit='s').dt.time
+
+    # Print the pause events
+    print(pause_groups)
 
     return pause_events
