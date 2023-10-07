@@ -216,7 +216,7 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
 
 
 def extract_interaction_events(
-    ballpath, flypath, Thresh=80, min_time=60, mark_in_df=False
+    source, Thresh=80, min_time=60, mark_in_df=False
 ):
     """
     Extracts the interaction events from the ball and fly paths.
@@ -238,16 +238,24 @@ def extract_interaction_events(
         A list of DataFrames containing the interaction events.
     """
 
-    data = get_coordinates(ballpath, flypath, ball=True, fly=True)
+    if isinstance(source, Path):
+        print(f'Path: {source}')
+        flypath = next(source.glob("*flytrack*.analysis.h5"))
+        ballpath = next(source.glob("*tracked*.analysis.h5"))
+        df = get_coordinates(flypath = flypath, ballpath = ballpath)
+    # TODO : implement the code below    
+    # elif isinstance(source, str):
+    #     print(f'String: {source}')
+    #     df = get_coordinates(flypath = source, xvals=True)
+        
+    elif isinstance(source, pd.DataFrame):
+        print(f'DataFrame: {source.shape}')
+        df = source
+    else:
+        raise TypeError("Invalid source format: source must be a pathlib Path, string or a pandas DataFrame")
 
-    # Create a pandas DataFrame from the data
-    df = pd.DataFrame(data, columns=["yball", "yfly"])
-
-    df["yball_smooth"] = savgol_lowpass_filter(df["yball"], 221, 1)
-    df["yfly_smooth"] = savgol_lowpass_filter(df["yfly"], 221, 1)
-    #df = df.assign(Frame=df.index + 1)
-    #df["time"] = df["Frame"] / 30
-
+    
+    #TODO: fix event detection to detect within Fly, not across whole dataset.
     # Compute the difference between the yball and yfly positions smoothed
     df["dist"] = df["yfly_smooth"] - df["yball_smooth"]
 
