@@ -50,7 +50,7 @@ for folder in DataPath.iterdir():
 Folders
 
 
-def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, event_type="pauses"):
+def process_videos(vidpath, OutFolder, vidname, ballpath=None, flypath=None, event_type="pauses"):
     def check_yball_variation(event_df, threshold=10):
         yball_segment = event_df["yball_smooth"]
         variation = yball_segment.max() - yball_segment.min()
@@ -189,9 +189,9 @@ def process_videos(ballpath, flypath, vidpath, OutFolder, vidname, event_type="p
 
 SaveFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/TNT_Pauses")
 
-Folders = [
-    Folders[0]
-]  # Troubleshooting with only one folder, comment out to run the whole list
+# Folders = [
+#     Folders[0]
+# ]  # Troubleshooting with only one folder, comment out to run the whole list
 
 for folder in Folders:
     print(f"Processing {folder}...")
@@ -214,9 +214,9 @@ for folder in Folders:
         print(metadata_dict)
 
         files = list(folder.glob("**/*.mp4"))
-        files = [
-            files[0]
-        ]  # Troubleshooting with only one video, comment out to run the whole folder
+        # files = [
+        #     files[0]
+        # ]  # Troubleshooting with only one video, comment out to run the whole folder
 
     for file in files:
         print(file.name)
@@ -281,7 +281,7 @@ for folder in Folders:
         if not OutFolder.joinpath(f"{vidname}.mp4").exists():
             print(f"Processing {vidname}...")
             try:
-                process_videos(ballpath, flypath, vidpath, OutFolder, vidname=vidname)
+                process_videos(flypath=flypath, vidpath=vidpath, OutFolder=OutFolder,ballpath=None, vidname=vidname)
             except Exception as e:
                 error_message = str(e)
                 traceback_message = traceback.format_exc()
@@ -300,3 +300,5 @@ for folder in Folders:
 
         else:
             print(f"{vidname} already exists! Skipping...")
+
+#TODO: Change functions structure to allow both interactions and pauses without having to changes things by hand.
