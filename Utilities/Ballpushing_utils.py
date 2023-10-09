@@ -360,3 +360,5 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     print(pause_groups)
 
     return pause_events
+
+#TODO: implement icecream
