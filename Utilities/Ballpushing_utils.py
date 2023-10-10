@@ -106,6 +106,7 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                 data = get_coordinates(
                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
                 )
+                
                 #print(data.head())
                 # Apply savgol_lowpass_filter to each column that is not Frame or time
                 # for col in data.columns:
@@ -118,6 +119,12 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                 data["corridor"] = corridor
                 Flycount += 1
                 data["Fly"] = f"Fly {Flycount}"
+                
+                if "Flipped" in folder.name:
+                    print(f'Flipped video, flipping ball and fly y coordinates, flipping start and end.')
+                    data["yball_smooth"] = -data["yball_smooth"]
+                    data["yfly_smooth"] = -data["yfly_smooth"]
+                    start = -start
                 
                 # Compute yball_relative relative to start
                 data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
@@ -200,6 +207,8 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
     data = pd.DataFrame(data, columns=columns)
     
     data = data.assign(Frame=data.index + 1)
+    
+    data["Frame"] = data["Frame"].astype(int)
 
     data["time"] = data["Frame"] / 30
     
