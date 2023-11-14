@@ -12,6 +12,7 @@ sys.path.insert(0, "../..")
 from Utilities.Utils import *
 from Utilities.Processing import *
 
+
 def extract_coordinates(h5_file):
     with h5py.File(h5_file, "r") as f:
         locs = f["tracks"][:].T
@@ -21,6 +22,12 @@ def extract_coordinates(h5_file):
 
 
 def replace_nans_with_previous_value(arr):
+    # Check if the first value is NaN
+    if np.isnan(arr[0]):
+        # Find the next non-NaN value
+        next_val = arr[next((i for i, x in enumerate(arr) if not np.isnan(x)), None)]
+        arr[0] = next_val
+
     # Find the indices of the NaN values
     nan_indices = np.where(np.isnan(arr))
 
@@ -29,7 +36,8 @@ def replace_nans_with_previous_value(arr):
         arr[i] = arr[i - 1]
 
 
-def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
+
+def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events = None):
     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
 
 
@@ -82,9 +90,9 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
 
             dir = file.parent
 
-            # Define flypath as the *flytrack*.analysis.h5 file in the same folder as the video
+            # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
             try:
-                flypath = list(dir.glob("*flytrack*.analysis.h5"))[0]
+                flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
                 # print(flypath.name)
             except IndexError:
                 # print(f"No fly tracking file found for {file.name}, skipping...")
@@ -106,26 +114,28 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                 data = get_coordinates(
                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
                 )
-                
-                #print(data.head())
+
+                # print(data.head())
                 # Apply savgol_lowpass_filter to each column that is not Frame or time
                 # for col in data.columns:
                 #     if col not in ["Frame", "time"]:
                 #         data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
-                    
+
                 data["start"] = start
                 data["end"] = end
                 data["arena"] = arena
                 data["corridor"] = corridor
                 Flycount += 1
                 data["Fly"] = f"Fly {Flycount}"
-                
+
                 if "Flipped" in folder.name:
-                    print(f'Flipped video, flipping ball and fly y coordinates, flipping start and end.')
+                    # print(
+                    #     f"Flipped video, flipping ball and fly y coordinates, flipping start and end."
+                    # )
                     data["yball_smooth"] = -data["yball_smooth"]
                     data["yfly_smooth"] = -data["yfly_smooth"]
-                    start = -start
-                
+                    #start = -start
+
                 # Compute yball_relative relative to start
                 data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
 
@@ -139,6 +149,14 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                     data[var] = metadata_dict[var][arena]
 
                 # Append the data to the all_data DataFrame
+                if Events == 'interactions':
+                    # Compute interaction events for all data
+                    interaction_events = find_interaction_events(data)
+
+                    # Assign an event number to each event
+                    for i, (start_time, end_time) in enumerate(interaction_events, start=1):
+                        data.loc[(data.Frame >= start_time) & (data.Frame <= end_time), "Event"] = i
+                
                 Dataset_list.append(data)
 
             except Exception as e:
@@ -148,7 +166,7 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30):
                 print(traceback_message)
 
     # Concatenate all dataframes in the list into a single dataframe
-    Dataset = pd.concat(Dataset_list, ignore_index=True)
+    Dataset = pd.concat(Dataset_list, ignore_index=True).reset_index()
 
     return Dataset
 
@@ -205,13 +223,13 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
 
     # Convert the 2D array into a DataFrame
     data = pd.DataFrame(data, columns=columns)
-    
+
     data = data.assign(Frame=data.index + 1)
-    
+
     data["Frame"] = data["Frame"].astype(int)
 
     data["time"] = data["Frame"] / 30
-    
+
     if ball:
         data["yball_smooth"] = savgol_lowpass_filter(data["yball"], 221, 1)
         if xvals:
@@ -224,85 +242,71 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
     return data
 
 
-def extract_interaction_events(
-    source, Thresh=80, min_time=60, mark_in_df=False
-):
-    """
-    Extracts the interaction events from the ball and fly paths.
-
-    Parameters
-    ----------
-    ballpath : str
-        The path to the ball path file.
-        flypath : str
-        The path to the fly path file.
-        Thresh : int
-        The threshold distance between the ball and fly.
-        min_time : int
-        The minimum duration of an interaction event.
-
-        Returns
-        -------
-        interaction_events : list
-        A list of DataFrames containing the interaction events.
-    """
-
+def extract_interaction_events(source,Thresh=80, min_time=60, as_df = False):
     if isinstance(source, Path):
-        print(f'Path: {source}')
-        flypath = next(source.glob("*flytrack*.analysis.h5"))
+        print(f"Path: {source}")
+        flypath = next(source.glob("*tracked_fly*.analysis.h5"))
         ballpath = next(source.glob("*tracked*.analysis.h5"))
-        df = get_coordinates(flypath = flypath, ballpath = ballpath)
-    # TODO : implement the code below    
-    # elif isinstance(source, str):
-    #     print(f'String: {source}')
-    #     df = get_coordinates(flypath = source, xvals=True)
-        
+        df = get_coordinates(flypath=flypath, ballpath=ballpath)
+
     elif isinstance(source, pd.DataFrame):
-        print(f'DataFrame: {source.shape}')
+        print(f"DataFrame: {source.shape}")
         df = source
+        
     else:
-        raise TypeError("Invalid source format: source must be a pathlib Path, string or a pandas DataFrame")
+        raise TypeError(
+            "Invalid source format: source must be a pathlib Path, string or a pandas DataFrame"
+        )
 
-    
-    #TODO: fix event detection to detect within Fly, not across whole dataset.
-    # Compute the difference between the yball and yfly positions smoothed
-    df["dist"] = df["yfly_smooth"] - df["yball_smooth"]
+    # Create a new column 'Event' and initialize it with None
+    df.loc[:, "Event"] = None
 
-    # Locate where the distance is below the threshold
-    df["close"] = df["dist"] < Thresh
+    # Compute interaction events for all data
+    interaction_events = find_interaction_events(df, Thresh, min_time)
 
-    df = df.reset_index()
+    # Assign an event number to each event
+    for i, (start_time, end_time) in enumerate(interaction_events, start=1):
+        df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
 
-    # Find the start and end indices of streaks of True values in the 'close' column
-    df["block"] = (df["close"].shift(1) != df["close"]).cumsum()
-    events = (
-        df[df["close"]]
-        .groupby("block")
-        .agg(start=("index", "min"), end=("index", "max"))
-    )
+    if 'Fly' in df.columns:
+        # Compute the maximum event number for each fly
+        max_event_per_fly = df.groupby('Fly')['Event'].max().shift(fill_value=0).cumsum()
 
-    # Store the interaction events as separate DataFrames
-    interaction_events = [
-        df.loc[start:end]
-        for start, end in events[["start", "end"]].itertuples(index=False)
-    ]
+        # Adjust event numbers for each fly
+        df['Event'] -= df['Fly'].map(max_event_per_fly)
 
-    # remove events that are less than min_time frames long
-    interaction_events = [
-        event for event in interaction_events if len(event) >= min_time
-    ]
+    else:
+        # Compute interaction events for all data
+        interaction_events = find_interaction_events(df, Thresh, min_time)
 
-    if mark_in_df:
-        # Create a new column 'Event' and initialize it with None
-        df["Event"] = None
+        # Assign an event number to each event
+        for i, (start_time, end_time) in enumerate(interaction_events, start=1):
+            df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
 
-        # For each event, assign 'EventN' to the rows that are part of the event
-        for i, event in enumerate(interaction_events, start=1):
-            df.loc[event.index, "Event"] = f"Event{i}"
-
+    if as_df:
         return df
     else:
         return interaction_events
+
+def find_interaction_events(df, Thresh = 80, min_time = 60):
+    df.loc[:, "dist"] = df.loc[:, "yfly_smooth"] - df.loc[:, "yball_smooth"]
+    df.loc[:, "close"] = df.loc[:,  "dist"] < Thresh
+    df.loc[:, "block"] = (df.loc[:, "close"].shift(1) != df.loc[:, "close"]).cumsum()
+    events = (
+        df[df["close"]]
+        .groupby("block")
+        .agg(start=("Frame", "min"), end=("Frame", "max"))
+    )
+    interaction_events = [
+        (start, end)
+        for start, end in events[["start", "end"]].itertuples(index=False)
+    ]
+    interaction_events = [
+        event for event in interaction_events if event[1] - event[0] >= min_time
+    ]
+    return interaction_events
+
+
 
 
 def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
@@ -323,28 +327,31 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     pause_events : list
         A list of DataFrames containing the pause events.
     """
-    
+
     if isinstance(source, Path):
-        print(f'Path: {source}')
-        df = get_coordinates(flypath = source, ball=False, xvals=True)
-        
+        print(f"Path: {source}")
+        df = get_coordinates(flypath=source, ball=False, xvals=True)
+
     elif isinstance(source, str):
-        print(f'String: {source}')
-        df = get_coordinates(flypath = source, ball=False, xvals=True)
-        
+        print(f"String: {source}")
+        df = get_coordinates(flypath=source, ball=False, xvals=True)
+
     elif isinstance(source, pd.DataFrame):
-        print(f'DataFrame: {source.shape}')
+        print(f"DataFrame: {source.shape}")
         df = source
     else:
-        raise TypeError("Invalid source format: source must be a pathlib Path, string or a pandas DataFrame")
+        raise TypeError(
+            "Invalid source format: source must be a pathlib Path, string or a pandas DataFrame"
+        )
 
     # Compute the absolute difference in yfly_smooth values
     df["yfly_diff"] = df["yfly_smooth"].diff().abs()
     df["xfly_diff"] = df["xfly_smooth"].diff().abs()
 
     # Identify periods where the difference is less than threshold for at least min_time frames
-    df["Pausing"] = ((df["yfly_diff"] < threshold_y) #& df['xfly_diff'] < threshold_x
-                     ).rolling(min_time).sum() == min_time
+    df["Pausing"] = (
+        (df["yfly_diff"] < threshold_y)  # & df['xfly_diff'] < threshold_x
+    ).rolling(min_time).sum() == min_time
 
     # Replace NaN values with False
     df["Pausing"].fillna(False, inplace=True)
@@ -362,12 +369,13 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     pause_groups = pauses.groupby("PauseGroup")["time"].agg(["first", "last"])
 
     # Convert 'first' and 'last' columns to datetime format
-    pause_groups['first'] = pd.to_datetime(pause_groups['first'], unit='s').dt.time
-    pause_groups['last'] = pd.to_datetime(pause_groups['last'], unit='s').dt.time
+    pause_groups["first"] = pd.to_datetime(pause_groups["first"], unit="s").dt.time
+    pause_groups["last"] = pd.to_datetime(pause_groups["last"], unit="s").dt.time
 
     # Print the pause events
     print(pause_groups)
 
     return pause_events
 
-#TODO: implement icecream
+
+# TODO: implement icecream
