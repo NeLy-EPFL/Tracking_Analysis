@@ -12,7 +12,7 @@ from Utilities.Processing import *
 
 DataPath = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Datasets")
 
-Dataset = pd.read_feather(DataPath / "230928_DatasetTNT.feather")
+Dataset = pd.read_feather(DataPath / "231010_DatasetTNT.feather")
 
 GroupOps = Dataset.groupby(
     [
@@ -21,10 +21,12 @@ GroupOps = Dataset.groupby(
     ]
 )
 
-Confints = GroupOps["yball_relative_SG"].apply(lambda x: draw_bs_ci(x, n_reps=300))
+Confints = GroupOps["yball_relative"].apply(lambda x: draw_bs_ci(x, n_reps=300))
 
 
 Confints_df = Confints.to_frame()
-Confints_df.to_feather(DataPath / "230928_Confints.feather")
+
+Confints_df_reset = Confints_df.reset_index()
+Confints_df_reset.to_feather(DataPath / "231010_Confints.feather")
 
 notify_me()
