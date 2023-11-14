@@ -14,7 +14,7 @@ videos=$(find $input_path -type f -name "*.mp4")
 for video in $videos; do
     video_name=$(basename $video .mp4)
     output_folder=$(dirname $video)
-    output_file="${output_folder}/${video_name}_tracked.slp"
+    output_file="${output_folder}/${video_name}_tracked_ball.slp"
     sleap-track $video --model $model_path --output $output_file
     
     # execute the command to extract and save .h5 files

@@ -28,7 +28,7 @@ for subdir in $subdirs; do
         for video in $videos; do
             video_name=$(basename $video .mp4)
             output_folder=$(dirname $video)
-            output_file="${output_folder}/${video_name}_tracked.slp"
+            output_file="${output_folder}/${video_name}_tracked_ball.slp"
             sleap-track $video --model $model_path --output $output_file
             
             # execute the command to extract and save .h5 files
@@ -38,7 +38,7 @@ for subdir in $subdirs; do
 done
 
 # Set path to python script
-python_script="/home/matthias/Tracking_Analysis/Tracktor/CheckTracks.py"
+python_script="/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckTracks.py"
 
 # Run python script
 python $python_script

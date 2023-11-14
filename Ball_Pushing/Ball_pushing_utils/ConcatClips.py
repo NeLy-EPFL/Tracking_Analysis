@@ -239,9 +239,9 @@ for folder in Folders:
 
         dir = file.parent
 
-        # Define flypath as the *flytrack*.analysis.h5 file in the same folder as the video
+        # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
         try:
-            flypath = list(dir.glob("*flytrack*.analysis.h5"))[0]
+            flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
             print(flypath.name)
         except IndexError:
             print(f"No fly tracking file found for {file.name}, skipping...")
