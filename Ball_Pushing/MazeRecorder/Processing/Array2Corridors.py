@@ -15,6 +15,12 @@ from itertools import repeat
 import subprocess
 import sys
 import os
+from joblib import Parallel, delayed
+
+# from multiprocessing import Pool
+# from multiprocessing import set_start_method
+# if __name__ == '__main__':
+#     set_start_method('spawn')
 
 
 # Path definitions
@@ -22,6 +28,9 @@ import os
 datafolder = Path("/home/matthias/Videos/")
 # For directories and subdirectories within the datafolder, if they contain images and do not have '_Cropped' in their name, add them to the list of folders to process
 
+# Function used by the multiprocessing Pool
+# def process_image_wrapper(args):
+#         return process_image(*args)
 
 def check_process(data_folder):
     data_folder = Path(data_folder)
@@ -293,21 +302,42 @@ def process_folder(in_folder):
     is_tty = os.isatty(sys.stdin.fileno())
 
     # Process the images in parallel using a process pool
-    with ProcessPoolExecutor() as executor:
-        results = list(
-            tqdm(
-                executor.map(
-                    process_image,
-                    images,
-                    repeat(Corridors),
-                    repeat(folder),
-                    repeat(processedfolder),
-                ),
-                total=len(images),
-                disable=not is_tty,  # Disable the progress bar if not running in a terminal
-            )
-        )
-        
+    # with ProcessPoolExecutor(max_workers=3) as executor:
+    #     results = list(
+    #         tqdm(
+    #             executor.map(
+    #                 process_image,
+    #                 images,
+    #                 repeat(Corridors),
+    #                 repeat(folder),
+    #                 repeat(processedfolder),
+    #             ),
+    #             total=len(images),
+    #             disable=not is_tty,  # Disable the progress bar if not running in a terminal
+    #         )
+    #     )
+    
+    # Implement the same process as above using joblib
+    # Prepare the arguments for the process_image function
+    args = [(image, Corridors, folder, processedfolder) for image in images]
+
+    # Use joblib to run the process_image function in parallel
+    results = Parallel(n_jobs=-1)(delayed(process_image)(*arg) for arg in tqdm(args))
+    # implementation with multiprocessing.Pool    
+
+    # Prepare the arguments for the process_image function
+    # args = [(image, Corridors, folder, processedfolder) for image in images]
+
+    # # Create a multiprocessing Pool
+    # with Pool() as p:
+    #     results = list(tqdm(p.imap(process_image_wrapper, args), total=len(images), disable=not is_tty))
+
+    # Process the images sequentially. Use the code below to test the process without multiprocessing
+    # results = []
+    # for image in tqdm(images, total=len(images), disable=not is_tty):
+    #     result = process_image(image, Corridors, folder, processedfolder)
+    #     results.append(result)
+            
     # rename the processed folder from _processing to _Cropped
     croppedfolder = processedfolder.with_name(processedfolder.stem.replace("_Processing", "_Cropped"))
     processedfolder.rename(croppedfolder)
@@ -322,4 +352,4 @@ if os.isatty(sys.stdin.fileno()):
         "Launch verification of processed folders integrity? (y/n): "
     )
     if run_checkcrops.lower() == "y":
-        subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckCrops.sh"])
+        subprocess.run(["/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckCrops.sh"])
