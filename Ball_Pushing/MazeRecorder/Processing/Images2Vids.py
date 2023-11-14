@@ -3,11 +3,12 @@ from tqdm import tqdm
 import subprocess
 import os
 import sys
+import numpy as np
 
 data_folder = Path("/home/matthias/Videos/")
 output_path = Path("/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/")
 
-fps = "30"
+#fps = "29"
 
 def check_video_integrity(video_path):
     try:
@@ -25,7 +26,7 @@ def check_video_integrity(video_path):
 def create_video_from_images(images_folder, output_folder, video_name, fps):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
-        terminal_call = f"ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -x265-params log-level=error -vsync 0 -crf 15 {video_path.as_posix()}"
+        terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
         subprocess.run(terminal_call, shell=True)
         return True
     else:
@@ -59,24 +60,30 @@ for folder in data_folder.iterdir():
         output_folder_name = folder.name.replace("_Cropped_Checked", "")
         output_folder = output_path / f"{output_folder_name}"
         if not output_folder.exists():
-            print(f"Error: Folder not found: {output_folder.name()}")
+            print(f"Error: Folder not found: {output_folder.name}")
             continue
         processing_output_folder = output_path / f"{output_folder_name}_Processing"
-        output_folder.rename(processing_output_folder)
-        search_folder_for_images(folder, output_folder, fps)
+        if not processing_output_folder.exists():
+            output_folder.rename(processing_output_folder)
+            
+        # Load the fps value from the fps.npy file in the experiment directory
+        fps_file = processing_output_folder / "fps.npy"
+        if fps_file.exists():
+            fps = np.load(fps_file)
+            fps = str(fps)
+        else:
+            print(f"Error: fps.npy file not found in {folder}")
+            continue
+        
+        search_folder_for_images(folder, processing_output_folder, fps)
         # Rename the output folder after all videos have been created
         print(f"Processing of {folder.name} complete.")
         new_output_folder_name = f"{output_folder_name}_Videos"
         new_output_folder = output_path / new_output_folder_name
-        output_folder.rename(new_output_folder)
+        processing_output_folder.rename(new_output_folder)
 
-subprocess.run(["/home/matthias/Tracking_Analysis/Tracktor/CheckVideos.sh"])
+subprocess.run(["/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckVideos.sh"])
 
 #TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 
 #TODO : make the script run as a background process, always checking for non processed videos
-
-#TODO: solve folder duplication
-#TODO : auto check instead of asking for input
-
-#TODO : Solve the issue where two folders are created
