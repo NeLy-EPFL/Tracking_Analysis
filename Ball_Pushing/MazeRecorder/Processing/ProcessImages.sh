@@ -5,8 +5,8 @@ miniconda3_bin="/home/matthias/miniconda3/bin/"
 export PATH="$miniconda3_bin:$PATH"
 
 # activate the right conda environment
-source activate trackinganalysis
+source activate processing
 
 
 # execute the check crops command
-python /home/matthias/Tracking_Analysis/Tracktor/Array2Corridors.py
+python /home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/Array2Corridors.py
