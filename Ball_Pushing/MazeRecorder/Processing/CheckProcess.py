@@ -3,6 +3,9 @@ from PIL import Image
 import shutil
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import os
+import sys
+
 
 def check_integrity(folder, source_folder):
     folder = Path(folder)
@@ -20,11 +23,17 @@ def check_integrity(folder, source_folder):
     else:
         print(f"Cropped check image found...")
         # Display the image and ask the user if it's valid
-        img = mpimg.imread(str(folder / "crop_check.png"))
-        plt.imshow(img)
-        plt.show(block=False) # added line to display the image using matplotlib
-        valid = input("Are the detected ROIs valid? (y/n): ")
-        plt.close() # added line to close the image window
+        if "SSH_CLIENT" in os.environ or "SSH_TTY" in os.environ:
+            valid = input(
+                f"Please check the detected ROIs in {folder.name}. Are they valid? (y/n):"
+            )
+        else:
+            img = mpimg.imread(str(folder / "crop_check.png"))
+            plt.imshow(img)
+            plt.show(block=False)  # added line to display the image using matplotlib
+            valid = input("Are the detected ROIs valid? (y/n): ")
+            plt.close()  # added line to close the image window
+
         if valid.lower() == "n":
             remove = input("Do you want to remove the processed folder? (y/n): ")
             if remove.lower() == "y":
