@@ -1,6 +1,8 @@
 import h5py
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from pathlib import Path
 import sys
 import traceback
@@ -36,8 +38,7 @@ def replace_nans_with_previous_value(arr):
         arr[i] = arr[i - 1]
 
 
-
-def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events = None):
+def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
 
 
@@ -134,7 +135,7 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events =
                     # )
                     data["yball_smooth"] = -data["yball_smooth"]
                     data["yfly_smooth"] = -data["yfly_smooth"]
-                    #start = -start
+                    # start = -start
 
                 # Compute yball_relative relative to start
                 data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
@@ -149,14 +150,19 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events =
                     data[var] = metadata_dict[var][arena]
 
                 # Append the data to the all_data DataFrame
-                if Events == 'interactions':
+                if Events == "interactions":
                     # Compute interaction events for all data
                     interaction_events = find_interaction_events(data)
 
                     # Assign an event number to each event
-                    for i, (start_time, end_time) in enumerate(interaction_events, start=1):
-                        data.loc[(data.Frame >= start_time) & (data.Frame <= end_time), "Event"] = i
-                
+                    for i, (start_time, end_time) in enumerate(
+                        interaction_events, start=1
+                    ):
+                        data.loc[
+                            (data.Frame >= start_time) & (data.Frame <= end_time),
+                            "Event",
+                        ] = i
+
                 Dataset_list.append(data)
 
             except Exception as e:
@@ -242,7 +248,7 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
     return data
 
 
-def extract_interaction_events(source,Thresh=80, min_time=60, as_df = False):
+def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
     if isinstance(source, Path):
         print(f"Path: {source}")
         flypath = next(source.glob("*tracked_fly*.analysis.h5"))
@@ -252,7 +258,7 @@ def extract_interaction_events(source,Thresh=80, min_time=60, as_df = False):
     elif isinstance(source, pd.DataFrame):
         print(f"DataFrame: {source.shape}")
         df = source
-        
+
     else:
         raise TypeError(
             "Invalid source format: source must be a pathlib Path, string or a pandas DataFrame"
@@ -268,12 +274,14 @@ def extract_interaction_events(source,Thresh=80, min_time=60, as_df = False):
     for i, (start_time, end_time) in enumerate(interaction_events, start=1):
         df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
 
-    if 'Fly' in df.columns:
+    if "Fly" in df.columns:
         # Compute the maximum event number for each fly
-        max_event_per_fly = df.groupby('Fly')['Event'].max().shift(fill_value=0).cumsum()
+        max_event_per_fly = (
+            df.groupby("Fly")["Event"].max().shift(fill_value=0).cumsum()
+        )
 
         # Adjust event numbers for each fly
-        df['Event'] -= df['Fly'].map(max_event_per_fly)
+        df["Event"] -= df["Fly"].map(max_event_per_fly)
 
     else:
         # Compute interaction events for all data
@@ -288,9 +296,10 @@ def extract_interaction_events(source,Thresh=80, min_time=60, as_df = False):
     else:
         return interaction_events
 
-def find_interaction_events(df, Thresh = 80, min_time = 60):
+
+def find_interaction_events(df, Thresh=80, min_time=60):
     df.loc[:, "dist"] = df.loc[:, "yfly_smooth"] - df.loc[:, "yball_smooth"]
-    df.loc[:, "close"] = df.loc[:,  "dist"] < Thresh
+    df.loc[:, "close"] = df.loc[:, "dist"] < Thresh
     df.loc[:, "block"] = (df.loc[:, "close"].shift(1) != df.loc[:, "close"]).cumsum()
     events = (
         df[df["close"]]
@@ -298,15 +307,12 @@ def find_interaction_events(df, Thresh = 80, min_time = 60):
         .agg(start=("Frame", "min"), end=("Frame", "max"))
     )
     interaction_events = [
-        (start, end)
-        for start, end in events[["start", "end"]].itertuples(index=False)
+        (start, end) for start, end in events[["start", "end"]].itertuples(index=False)
     ]
     interaction_events = [
         event for event in interaction_events if event[1] - event[0] >= min_time
     ]
     return interaction_events
-
-
 
 
 def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
@@ -379,3 +385,242 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
 
 
 # TODO: implement icecream
+
+
+class Fly:
+    """
+    A class for a single fly.
+
+    Parameters
+    ----------
+    directory : Path
+        The path to the fly directory.
+
+    Attributes
+    ----------
+    directory : Path
+        The path to the fly directory.
+        experiment : Experiment
+        The experiment that the fly belongs to.
+    """
+
+    def __init__(self, directory, experiment=None):
+        self.directory = Path(directory)
+        self.experiment = experiment if experiment is not None else Experiment(self.directory.parent.parent)
+        self.arena = self.directory.parent.name
+        self.corridor = self.directory.name
+        self.name = f"{self.experiment.directory.name}_{self.arena}_{self.corridor}"
+        self.arena_metadata = self.get_arena_metadata()
+        
+        self.video = list(self.directory.glob("*.mp4"))[0]
+
+        try:
+            self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
+            # print(flypath.name)
+        except IndexError:
+            print(f"No fly tracking file found for {self.name}, skipping...")
+
+        try:
+            self.balltrack = list(directory.glob("*tracked_ball*.analysis.h5"))[0]
+            # print(ballpath.name)
+        except IndexError:
+            print(f"No ball tracking file found for {self.name}, skipping...")
+
+    def get_arena_metadata(self):
+        # Get the metadata for this fly's arena
+        arena_key = self.arena.lower()
+        return {
+            var: data[arena_key]
+            for var, data in self.experiment.metadata.items()
+            if arena_key in data
+        }
+    
+    def find_interaction_events(
+        self,
+        gap_between_events = 1,
+        event_min_length = 60,
+        thresh = [0, 80],
+        omit_events=None,
+        plot_signals=False,
+        signal_name="",
+    ):
+        """
+        This function finds events in a given signal based on certain criteria.
+
+        Parameters:
+        signal (list): The signal in which to find events.
+        thresh (list): The lower and upper limit values for the signal.
+        gap_between_events (int): The minimum gap required between two events.
+        event_min_length (int): The minimum length of an event.
+        omit_events (list, optional): A range of events to omit. Defaults to None.
+        plot_signals (bool, optional): Whether to plot the signals or not. Defaults to False.
+        signal_name (str, optional): The name of the signal. Defaults to "".
+
+        Returns:
+        list: A list of events found in the signal.
+        """
+
+        # Compute distance between fly and ball
+        flyball_positions = get_coordinates (self.balltrack, self.flytrack)
+        
+        distance = Dist = flyball_positions.loc[:, "yfly_smooth"] - flyball_positions.loc[:, "yball_smooth"]
+        
+        # Initialize the list of events
+        events = []
+
+        # Find all frames where the signal is within the limit values
+        all_frames_above_lim = np.where(
+            (np.array(distance) > thresh[0]) & (np.array(distance) < thresh[1])
+        )[0]
+
+        # If no frames are found within the limit values, return an empty list
+        if len(all_frames_above_lim) == 0:
+            if plot_signals:
+                print(f"Any point is between {thresh[0]} and {thresh[1]}")
+                plt.plot(signal, label=f"{signal_name}-filtered")
+                plt.legend()
+                plt.show()
+            return events
+
+        # Find the distance between consecutive frames
+        distance_betw_frames = np.diff(all_frames_above_lim)
+
+        # Find the points where the distance between frames is greater than the gap between events
+        split_points = np.where(distance_betw_frames > gap_between_events)[0]
+
+        # Add the first and last points to the split points
+        split_points = np.insert(split_points, 0, -1)
+        split_points = np.append(split_points, len(all_frames_above_lim) - 1)
+
+        # Plot the signal if required
+        if plot_signals:
+            limit_value = thresh[0] if thresh[1] == np.inf else thresh[1]
+            print(all_frames_above_lim[split_points])
+            plt.plot(signal, label=f"{signal_name}-filtered")
+
+        # Iterate over the split points to find events
+        for f in range(0, len(split_points) - 1):
+            # If the gap between two split points is less than 2, skip to the next iteration
+            if split_points[f + 1] - split_points[f] < 2:
+                continue
+
+            # Define the start and end of the region of interest (ROI)
+            start_roi = all_frames_above_lim[split_points[f] + 1]
+            end_roi = all_frames_above_lim[split_points[f + 1]]
+
+            # If there are events to omit and the start of the ROI is within these events, adjust the start of the ROI
+            if omit_events:
+                if (
+                    start_roi >= omit_events[0]
+                    and start_roi < omit_events[1]
+                    and end_roi < omit_events[1]
+                ):
+                    continue
+                elif (
+                    start_roi >= omit_events[0]
+                    and start_roi < omit_events[1]
+                    and end_roi > omit_events[1]
+                ):
+                    start_roi = int(omit_events[1])
+
+            # Calculate the duration of the event
+            duration = end_roi - start_roi
+
+            # Calculate the mean and median of the signal within the ROI
+            mean_signal = np.mean(np.array(distance[start_roi:end_roi]))
+            median_signal = np.median(np.array(distance[start_roi:end_roi]))
+
+            # Calculate the proportion of the signal within the ROI that is within the limit values
+            signal_within_limits = len(
+                np.where(
+                    (np.array(distance[start_roi:end_roi]) > thresh[0])
+                    & (np.array(distance[start_roi:end_roi]) < thresh[1])
+                )[0]
+            ) / len(np.array(distance[start_roi:end_roi]))
+
+            # If the duration of the event is greater than the minimum length and more than 75% of the signal is within the limit values, add the event to the list
+            if duration > event_min_length and signal_within_limits > 0.75:
+                events.append([start_roi, end_roi, duration])
+                if plot_signals:
+                    print(
+                        start_roi,
+                        end_roi,
+                        duration,
+                        mean_signal,
+                        median_signal,
+                        signal_within_limits,
+                    )
+                    plt.plot(start_roi, limit_value, "go")
+                    plt.plot(end_roi, limit_value, "rx")
+
+        # Plot the limit value if required
+        if plot_signals:
+            plt.plot([0, len(distance)], [limit_value, limit_value], "c-")
+            plt.legend()
+            plt.show()
+
+        # Return the list of events
+        return events
+
+
+class Experiment:
+    def __init__(self, directory):
+        """
+        Parameters
+        ----------
+        directory : Path
+            The path to the experiment directory.
+
+        Attributes
+        ----------
+        directory : Path
+            The path to the experiment directory.
+            metadata : dict
+            A dictionary containing the metadata for the experiment.
+            fps : str
+            The frame rate of the videos.
+        """
+        self.directory = directory
+        self.metadata = self.load_metadata()
+        self.fps = self.load_fps()
+        self.flies = self.load_flies()
+
+    def load_metadata(self):
+        with open(self.directory / "Metadata.json", "r") as f:
+            metadata = json.load(f)
+            variables = metadata["Variable"]
+            metadata_dict = {}
+            for var in variables:
+                metadata_dict[var] = {}
+                for arena in range(1, 10):
+                    arena_key = f"Arena{arena}"
+                    var_index = variables.index(var)
+                    metadata_dict[var][arena_key] = metadata[arena_key][var_index]
+
+            # In the metadata_dict, make all they Arena subkeys lower case
+
+            for var in variables:
+                metadata_dict[var] = {
+                    k.lower(): v for k, v in metadata_dict[var].items()
+                }
+            # print(metadata_dict)
+            return metadata_dict
+
+    def load_fps(self):
+        # Load the fps value from the fps.npy file in the experiment directory
+        fps_file = self.directory / "fps.npy"
+        if fps_file.exists():
+            fps = np.load(fps_file)
+            return str(fps)
+        else:
+            print(f"Error: fps.npy file not found in {self.directory}")
+            return None
+        
+    def load_flies(self):
+        # Find all .mp4 files in the subdirectories of the experiment
+        mp4_files = list(self.directory.glob("**/*.mp4"))
+
+        # Create a Fly object for each .mp4 file
+        flies = [Fly(mp4_file.parent, experiment=self) for mp4_file in mp4_files]
+
+        return flies
