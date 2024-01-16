@@ -426,7 +426,7 @@ class Fly:
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
 
-        self.video = list(self.directory.glob("*.mp4"))[0]
+        self.video = list(self.directory.glob(f"{self.corridor}.mp4"))[0]
 
         try:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
@@ -439,6 +439,11 @@ class Fly:
             # print(ballpath.name)
         except IndexError:
             print(f"No ball tracking file found for {self.name}, skipping...")
+
+        # Compute distance between fly and ball
+        self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
+
+        self.interaction_events = find_interaction_events(self.flyball_positions)
 
     def get_arena_metadata(self):
         # Get the metadata for this fly's arena
@@ -476,15 +481,12 @@ class Fly:
         signal_name (str, optional): The name of the signal. Defaults to "".
 
         Returns:
-        list: A list of events found in the signal.
+        list: A list of events found in the signal. Each event is a list containing the start frame, end frame and duration of the event.
         """
 
-        # Compute distance between fly and ball
-        flyball_positions = get_coordinates(self.balltrack, self.flytrack)
-
-        distance = Dist = (
-            flyball_positions.loc[:, "yfly_smooth"]
-            - flyball_positions.loc[:, "yball_smooth"]
+        distance = (
+            self.flyball_positions.loc[:, "yfly_smooth"]
+            - self.flyball_positions.loc[:, "yball_smooth"]
         )
 
         # Initialize the list of events
@@ -583,6 +585,138 @@ class Fly:
 
         # Return the list of events
         return events
+
+    def check_yball_variation(self, event, threshold=10):
+        # Get the yball_smooth segment corresponding to an event
+        yball_event = self.flyball_positions.loc[event[0] : event[1], "yball_smooth"]
+
+        variation = yball_event.max() - yball_event.min()
+
+        return variation > threshold
+
+    def generate_clip(self, event, outpath, fps, width, height):
+        start_frame, end_frame = event[0], event[1]
+        cap = cv2.VideoCapture(str(self.video))
+        try:
+            start_time = start_frame / fps
+            start_time_str = str(datetime.timedelta(seconds=int(start_time)))
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+            # Get the index of the event in the list to apply it to the output file name
+            event_index = self.interaction_events.index(event)
+
+            clip_path = outpath.joinpath(f"output_{event_index}.mp4").as_posix()
+            out = cv2.VideoWriter(clip_path, fourcc, fps, (height, width))
+            try:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+                for _ in range(start_frame, end_frame):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+
+                    # Write some Text
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    text = f"Event:{event_index+1} - start:{start_time_str}"
+                    font_scale = width / 150
+                    thickness = int(4 * font_scale)
+                    text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
+
+                    # Position the text at the top center of the frame
+                    text_x = (frame.shape[1] - text_size[0]) // 2
+                    text_y = 25
+                    cv2.putText(
+                        frame,
+                        text,
+                        (text_x, text_y),
+                        font,
+                        font_scale,
+                        (255, 255, 255),
+                        thickness,
+                        cv2.LINE_AA,
+                    )
+
+                    # Check if yball value varies more than threshold
+                    if self.check_yball_variation(
+                        event
+                    ):  # You need to implement this function
+                        # Add red dot to segment
+                        dot = np.zeros((10, 10, 3), dtype=np.uint8)
+                        dot[:, :, 0] = 0
+                        dot[:, :, 1] = 0
+                        dot[:, :, 2] = 255
+                        dot = cv2.resize(dot, (20, 20))
+
+                        # Position the dot right next to the text at the top of the frame
+                        dot_x = (
+                            text_x + text_size[0] + 10
+                        )  # Position the dot right next to the text with a margin of 10
+
+                        # Adjusted position for dot_y to make it slightly higher
+                        dot_y_adjustment_factor = 1.2
+                        dot_y = (
+                            text_y
+                            - int(dot.shape[0] * dot_y_adjustment_factor)
+                            + text_size[1] // 2
+                        )
+
+                        frame[
+                            dot_y : dot_y + dot.shape[0], dot_x : dot_x + dot.shape[1]
+                        ] = dot
+
+                    # Write the frame into the output file
+                    out.write(frame)
+
+            # Release everything when done
+            finally:
+                out.release()
+        finally:
+            cap.release()
+        return clip_path
+
+    def concatenate_clips(self, clips, outpath, fps, width, height, vidname):
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(
+            outpath.joinpath(f"{vidname}.mp4").as_posix(), fourcc, fps, (height, width)
+        )
+        try:
+            for clip_path in clips:
+                cap = cv2.VideoCapture(clip_path)
+                try:
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        out.write(frame)
+                finally:
+                    cap.release()
+        finally:
+            out.release()
+
+    def generate_interactions_video(self, outpath=None):
+        """
+        Use detected events to generate clips of the fly's interactions with the ball, then concatenate the clips to generate a video.
+        """
+
+        if outpath is None:
+            outpath = self.directory
+        events = self.interaction_events
+        clips = []
+
+        cap = cv2.VideoCapture(str(self.video))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        vidname = f"{self.name}_{self.Genotype if self.Genotype else 'undefined'}"
+
+        for i, event in enumerate(events):
+            clip_path = self.generate_clip(event, outpath, fps, width, height)
+            clips.append(clip_path)
+        self.concatenate_clips(clips, outpath, fps, width, height, vidname)
+        for clip_path in clips:
+            os.remove(clip_path)
+        print(f"Finished processing {vidname}!")
 
     def generate_preview(self, speed=60, save=False, output_path=None):
         """
@@ -695,25 +829,35 @@ class Experiment:
         return fps
 
     def load_flies(self):
-        # Find all .mp4 files in the subdirectories of the experiment
-        mp4_files = list(self.directory.glob("**/*.mp4"))
+        # Find all directories containing at least one .mp4 file
+        mp4_directories = [
+            dir for dir in self.directory.glob("**/*") if any(dir.glob("*.mp4"))
+        ]
+
+        # Find all .mp4 files that are named the same as their parent directory
+        mp4_files = [
+            mp4_file
+            for dir in mp4_directories
+            if (mp4_file := dir / f"{dir.name}.mp4").exists()
+        ]
 
         # Create a Fly object for each .mp4 file
         flies = [Fly(mp4_file.parent, experiment=self) for mp4_file in mp4_files]
 
         return flies
 
+
 class Dataset:
     def __init__(self, source):
         """
         A class to generate a dataset from mazerecorder videos.
-        
+
         Parameters
         ----------
         source : can either be a list of Experiment objects, one Experiment object, a list of Fly objects or one Fly object.
-        
+
         """
-        
+
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment objects or Fly objects
             if isinstance(source[0], Experiment):
@@ -723,7 +867,9 @@ class Dataset:
                 # If the source contains Fly objects, generate a dataset from the flies
                 self.dataset = self.generate_dataset_from_flies(source)
             else:
-                raise TypeError("Invalid source format: source must be a list of Experiment objects or a list of Fly objects")
+                raise TypeError(
+                    "Invalid source format: source must be a list of Experiment objects or a list of Fly objects"
+                )
         elif isinstance(source, Experiment):
             # If the source is an Experiment object, generate a dataset from the experiment
             self.dataset = self.generate_dataset_from_experiments([source])
@@ -731,7 +877,9 @@ class Dataset:
             # If the source is a Fly object, generate a dataset from the fly
             self.dataset = self.generate_dataset_from_flies([source])
         else:
-            raise TypeError("Invalid source format: source must be a list of Experiment objects or a list of Fly objects")
-        
-    def generate_dataset_from_experiments(self, experiments):
-        # TODO: implement this function
+            raise TypeError(
+                "Invalid source format: source must be a list of Experiment objects or a list of Fly objects"
+            )
+
+    # def generate_dataset_from_experiments(self, experiments):
+    # TODO: implement this function

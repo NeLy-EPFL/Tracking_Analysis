@@ -17,15 +17,25 @@ def get_labserver():
     """
 
     if platform.system() == "Darwin":
-        return Path(
-            "/Volumes/Ramdya-Lab/DURRIEU_Matthias/"
-        )
+        return Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/")
     elif platform.system() == "Linux":
-        return Path(
-            "/mnt/labserver/DURRIEU_Matthias/"
-        )
+        return Path("/mnt/labserver/DURRIEU_Matthias/")
     else:
         raise ValueError("Unsupported platform")
+
+
+def get_data_path(setup="mazerecorder"):
+    """
+    Returns the data path for the specified setup.
+
+    """
+
+    labserver = get_labserver()
+
+    if setup == "mazerecorder":
+        datapath = labserver.joinpath("Experimental_data/MultiMazeRecorder/Videos")
+        
+    return datapath
 
 
 def checksave(path, object, file):
