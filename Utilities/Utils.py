@@ -4,6 +4,28 @@ import pandas as pd
 from traceback import format_tb
 import requests
 import os
+import platform
+from pathlib import Path
+
+
+def get_labserver():
+    """
+    Returns the appropriate data path based on the platform.
+
+    Returns:
+    Path: The data path.
+    """
+
+    if platform.system() == "Darwin":
+        return Path(
+            "/Volumes/Ramdya-Lab/DURRIEU_Matthias/"
+        )
+    elif platform.system() == "Linux":
+        return Path(
+            "/mnt/labserver/DURRIEU_Matthias/"
+        )
+    else:
+        raise ValueError("Unsupported platform")
 
 
 def checksave(path, object, file):
