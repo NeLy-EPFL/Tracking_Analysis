@@ -255,71 +255,71 @@ def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=Fals
     return data
 
 
-def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
-    if isinstance(source, Path):
-        print(f"Path: {source}")
-        flypath = next(source.glob("*tracked_fly*.analysis.h5"))
-        ballpath = next(source.glob("*tracked*.analysis.h5"))
-        df = get_coordinates(flypath=flypath, ballpath=ballpath)
+# def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
+#     if isinstance(source, Path):
+#         print(f"Path: {source}")
+#         flypath = next(source.glob("*tracked_fly*.analysis.h5"))
+#         ballpath = next(source.glob("*tracked*.analysis.h5"))
+#         df = get_coordinates(flypath=flypath, ballpath=ballpath)
 
-    elif isinstance(source, pd.DataFrame):
-        print(f"DataFrame: {source.shape}")
-        df = source
+#     elif isinstance(source, pd.DataFrame):
+#         print(f"DataFrame: {source.shape}")
+#         df = source
 
-    else:
-        raise TypeError(
-            "Invalid source format: source must be a pathlib Path, string or a pandas DataFrame"
-        )
+#     else:
+#         raise TypeError(
+#             "Invalid source format: source must be a pathlib Path, string or a pandas DataFrame"
+#         )
 
-    # Create a new column 'Event' and initialize it with None
-    df.loc[:, "Event"] = None
+#     # Create a new column 'Event' and initialize it with None
+#     df.loc[:, "Event"] = None
 
-    # Compute interaction events for all data
-    interaction_events = find_interaction_events(df, Thresh, min_time)
+#     # Compute interaction events for all data
+#     interaction_events = find_interaction_events(df, Thresh, min_time)
 
-    # Assign an event number to each event
-    for i, (start_time, end_time) in enumerate(interaction_events, start=1):
-        df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
+#     # Assign an event number to each event
+#     for i, (start_time, end_time) in enumerate(interaction_events, start=1):
+#         df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
 
-    if "Fly" in df.columns:
-        # Compute the maximum event number for each fly
-        max_event_per_fly = (
-            df.groupby("Fly")["Event"].max().shift(fill_value=0).cumsum()
-        )
+#     if "Fly" in df.columns:
+#         # Compute the maximum event number for each fly
+#         max_event_per_fly = (
+#             df.groupby("Fly")["Event"].max().shift(fill_value=0).cumsum()
+#         )
 
-        # Adjust event numbers for each fly
-        df["Event"] -= df["Fly"].map(max_event_per_fly)
+#         # Adjust event numbers for each fly
+#         df["Event"] -= df["Fly"].map(max_event_per_fly)
 
-    else:
-        # Compute interaction events for all data
-        interaction_events = find_interaction_events(df, Thresh, min_time)
+#     else:
+#         # Compute interaction events for all data
+#         interaction_events = find_interaction_events(df, Thresh, min_time)
 
-        # Assign an event number to each event
-        for i, (start_time, end_time) in enumerate(interaction_events, start=1):
-            df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
+#         # Assign an event number to each event
+#         for i, (start_time, end_time) in enumerate(interaction_events, start=1):
+#             df.loc[(df.index >= start_time) & (df.index <= end_time), "Event"] = i
 
-    if as_df:
-        return df
-    else:
-        return interaction_events
+#     if as_df:
+#         return df
+#     else:
+#         return interaction_events
 
 
-def find_interaction_events(df, Thresh=80, min_time=60):
-    df.loc[:, "dist"] = df.loc[:, "yfly_smooth"] - df.loc[:, "yball_smooth"]
-    df.loc[:, "close"] = df.loc[:, "dist"] < Thresh
-    df.loc[:, "block"] = (df.loc[:, "close"].shift(1) != df.loc[:, "close"]).cumsum()
-    events = (
-        df[df["close"]]
-        .groupby("block")
-        .agg(start=("Frame", "min"), end=("Frame", "max"))
-    )
-    interaction_events = [
-        (start, end) for start, end in events[["start", "end"]].itertuples(index=False)
-    ]
-    interaction_events = [
-        event for event in interaction_events if event[1] - event[0] >= min_time
-    ]
-    return interaction_events
+# def find_interaction_events(df, Thresh=80, min_time=60):
+#     df.loc[:, "dist"] = df.loc[:, "yfly_smooth"] - df.loc[:, "yball_smooth"]
+#     df.loc[:, "close"] = df.loc[:, "dist"] < Thresh
+#     df.loc[:, "block"] = (df.loc[:, "close"].shift(1) != df.loc[:, "close"]).cumsum()
+#     events = (
+#         df[df["close"]]
+#         .groupby("block")
+#         .agg(start=("Frame", "min"), end=("Frame", "max"))
+#     )
+#     interaction_events = [
+#         (start, end) for start, end in events[["start", "end"]].itertuples(index=False)
+#     ]
+#     interaction_events = [
+#         event for event in interaction_events if event[1] - event[0] >= min_time
+#     ]
+#     return interaction_events
 
 
 def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
@@ -396,22 +396,31 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
 
 class Fly:
     """
-    A class for a single fly.
-
-    Parameters
-    ----------
-    directory : Path
-        The path to the fly directory.
-
-    Attributes
-    ----------
-    directory : Path
-        The path to the fly directory.
-        experiment : Experiment
-        The experiment that the fly belongs to.
+    A class for a single fly. This represents a folder containing a video, associated tracking files, and metadata files. It is usually contained in an Experiment object, and inherits the Experiment object's metadata.
     """
 
     def __init__(self, directory, experiment=None):
+        """
+        Initialize a Fly object.
+
+        Args:
+            directory (Path): The path to the fly directory.
+            experiment (Experiment, optional): An optional Experiment object. If not provided,
+                                               an Experiment object will be created based on the parent directory of the given directory.
+
+        Attributes:
+            directory (Path): The path to the fly directory.
+            experiment (Experiment): The Experiment object associated with the Fly.
+            arena (str): The name of the parent directory of the fly directory.
+            corridor (str): The name of the fly directory.
+            name (str): A string combining the name of the experiment directory, the arena, and the corridor.
+            arena_metadata (dict): Metadata for the arena, obtained by calling the get_arena_metadata method.
+            video (Path): The path to the video file in the fly directory.
+            flytrack (Path): The path to the fly tracking file in the fly directory. If not found, a message is printed and this attribute is not set.
+            balltrack (Path): The path to the ball tracking file in the fly directory. If not found, a message is printed and this attribute is not set.
+            flyball_positions (DataFrame): The coordinates of the fly and the ball, obtained by calling the get_coordinates function with the flytrack and balltrack paths.
+        """
+
         self.directory = Path(directory)
         self.experiment = (
             experiment
@@ -443,9 +452,16 @@ class Fly:
         # Compute distance between fly and ball
         self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
 
-        self.interaction_events = find_interaction_events(self.flyball_positions)
-
     def get_arena_metadata(self):
+        """
+        Retrieve the metadata for the Fly object's arena.
+
+        This method looks up the arena's metadata in the experiment's metadata dictionary.
+        The arena's name is converted to lowercase and used as the key to find the corresponding metadata.
+
+        Returns:
+            dict: A dictionary containing the metadata for the arena. The keys are the metadata variable names and the values are the corresponding metadata values. If no metadata is found for the arena, an empty dictionary is returned.
+        """
         # Get the metadata for this fly's arena
         arena_key = self.arena.lower()
         return {
@@ -455,27 +471,34 @@ class Fly:
         }
 
     def display_metadata(self):
+        """
+        Print the metadata for the Fly object's arena.
+
+        This method iterates over the arena's metadata dictionary and prints each key-value pair.
+
+        Prints:
+            str: The metadata variable name and its corresponding value, formatted as 'variable: value'.
+        """
         # Print the metadata for this fly's arena
         for var, data in self.arena_metadata.items():
             print(f"{var}: {data}")
 
     def find_interaction_events(
         self,
-        gap_between_events=1,
-        event_min_length=60,
-        thresh=[0, 80],
+        gap_between_events=2,
+        event_min_length=2,
+        thresh=[0, 70],
         omit_events=None,
         plot_signals=False,
         signal_name="",
     ):
         """
-        This function finds events in a given signal based on certain criteria.
+        This function finds events in a signal derived from the flyball_positions attribute based on certain criteria.
 
         Parameters:
-        signal (list): The signal in which to find events.
-        thresh (list): The lower and upper limit values for the signal.
-        gap_between_events (int): The minimum gap required between two events.
-        event_min_length (int): The minimum length of an event.
+        gap_between_events (int): The minimum gap required between two events, expressed in seconds. Defaults to 2.
+        event_min_length (int): The minimum length of an event, expressed in seconds. Defaults to 2.
+        thresh (list): The lower and upper limit values (in pixels) for the signal to be considered an event. Defaults to [0, 70].
         omit_events (list, optional): A range of events to omit. Defaults to None.
         plot_signals (bool, optional): Whether to plot the signals or not. Defaults to False.
         signal_name (str, optional): The name of the signal. Defaults to "".
@@ -484,10 +507,14 @@ class Fly:
         list: A list of events found in the signal. Each event is a list containing the start frame, end frame and duration of the event.
         """
 
+        # Convert the gap between events and the minimum event length from seconds to frames
+        gap_between_events = gap_between_events * self.experiment.fps
+        event_min_length = event_min_length * self.experiment.fps
+
         distance = (
             self.flyball_positions.loc[:, "yfly_smooth"]
             - self.flyball_positions.loc[:, "yball_smooth"]
-        )
+        ).values
 
         # Initialize the list of events
         events = []
@@ -587,6 +614,18 @@ class Fly:
         return events
 
     def check_yball_variation(self, event, threshold=10):
+        """
+        Check if the variation in the 'yball_smooth' value during an event exceeds a given threshold.
+
+        This method extracts the 'yball_smooth' values for the duration of the event from the 'flyball_positions' DataFrame. It then calculates the variation as the difference between the maximum and minimum 'yball_smooth' values. If this variation exceeds the threshold, the method returns True; otherwise, it returns False.
+
+        Args:
+            event (list): A list containing the start and end indices of the event in the 'flyball_positions' DataFrame.
+            threshold (int, optional): The minimum variation (in pixels) required for the method to return True. Defaults to 10.
+
+        Returns:
+            bool: True if the variation in 'yball_smooth' during the event exceeds the threshold, False otherwise.
+        """
         # Get the yball_smooth segment corresponding to an event
         yball_event = self.flyball_positions.loc[event[0] : event[1], "yball_smooth"]
 
@@ -595,6 +634,21 @@ class Fly:
         return variation > threshold
 
     def generate_clip(self, event, outpath, fps, width, height):
+        """
+        Generate a video clip for a given event.
+
+        This method creates a video clip from the original video for the duration of the event. It also adds text to each frame indicating the event number and start time. If the 'yball_smooth' value varies more than a certain threshold during the event, a red dot is added to the frame.
+
+        Args:
+            event (list): A list containing the start and end indices of the event in the 'flyball_positions' DataFrame.
+            outpath (Path): The directory where the output video clip should be saved.
+            fps (int): The frames per second of the original video.
+            width (int): The width of the output video frames.
+            height (int): The height of the output video frames.
+
+        Returns:
+            str: The path to the output video clip.
+        """
         start_frame, end_frame = event[0], event[1]
         cap = cv2.VideoCapture(str(self.video))
         try:
@@ -603,7 +657,7 @@ class Fly:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
             # Get the index of the event in the list to apply it to the output file name
-            event_index = self.interaction_events.index(event)
+            event_index = self.find_interaction_events().index(event)
 
             clip_path = outpath.joinpath(f"output_{event_index}.mp4").as_posix()
             out = cv2.VideoWriter(clip_path, fourcc, fps, (height, width))
@@ -675,6 +729,20 @@ class Fly:
         return clip_path
 
     def concatenate_clips(self, clips, outpath, fps, width, height, vidname):
+        """
+        Concatenate multiple video clips into a single video.
+
+        This method takes a list of video clip paths, reads each clip frame by frame, and writes the frames into a new video file. The new video file is saved in the specified output directory with the specified name.
+
+        Args:
+            clips (list): A list of paths to the video clips to be concatenated.
+            outpath (Path): The directory where the output video should be saved.
+            fps (int): The frames per second for the output video.
+            width (int): The width of the output video frames.
+            height (int): The height of the output video frames.
+            vidname (str): The name of the output video file (without the extension).
+
+        """
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(
             outpath.joinpath(f"{vidname}.mp4").as_posix(), fourcc, fps, (height, width)
@@ -695,12 +763,17 @@ class Fly:
 
     def generate_interactions_video(self, outpath=None):
         """
-        Use detected events to generate clips of the fly's interactions with the ball, then concatenate the clips to generate a video.
+        Generate a video of the fly's interactions with the ball.
+
+        This method detects interaction events, generates a video clip for each event, concatenates the clips into a single video, and saves the video in the specified output directory. The video is named after the fly's name and genotype. If the genotype is not defined, 'undefined' is used instead. After the video is created, the individual clips are deleted.
+
+        Args:
+            outpath (Path, optional): The directory where the output video should be saved. If None, the video is saved in the fly's directory. Defaults to None.
         """
 
         if outpath is None:
             outpath = self.directory
-        events = self.interaction_events
+        events = self.find_interaction_events()
         clips = []
 
         cap = cv2.VideoCapture(str(self.video))
@@ -722,9 +795,11 @@ class Fly:
         """
         Generate an accelerated version of the video using moviepy.
 
+        This method uses the ffmpeg command-line tool to speed up the video if the 'save' parameter is True. If 'save' is False, it uses the moviepy library to speed up the video and preview it using Pygame.
+
         Parameters:
         speed (float): The speedup factor. For example, 2.0 will double the speed of the video.
-        save (bool, optional): Whether to save the sped up video. Defaults to False.
+        save (bool, optional): Whether to save the sped up video. If True, the video is saved using ffmpeg. If False, the video is previewed using Pygame. Defaults to False.
         output_path (str, optional): The path to save the sped up video. If not provided and save is True, a default path will be used. Defaults to None.
         """
 
@@ -823,7 +898,7 @@ class Experiment:
         else:
             fps = 30
             print(
-                f"Error: fps.npy file not found in {self.directory}; Defaulting to 30 fps."
+                f"Warning: fps.npy file not found in {self.directory}; Defaulting to 30 fps."
             )
 
         return fps
