@@ -11,6 +11,7 @@ import datetime
 import subprocess
 
 import cv2
+from moviepy.editor import VideoClip
 from moviepy.editor import VideoFileClip
 from moviepy.video.fx import all as vfx
 import pygame
@@ -184,7 +185,7 @@ def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=N
     return Dataset
 
 
-def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=False):
+def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=True):
     """Extracts the coordinates from the ball and fly paths.
 
     Parameters:
@@ -435,7 +436,10 @@ class Fly:
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
 
-        self.video = list(self.directory.glob(f"{self.corridor}.mp4"))[0]
+        try:
+            self.video = list(self.directory.glob(f"{self.corridor}.mp4"))[0]
+        except IndexError:
+            raise FileNotFoundError(f"No video found for {self.name}.")
 
         try:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
@@ -450,7 +454,9 @@ class Fly:
             print(f"No ball tracking file found for {self.name}, skipping...")
 
         # Compute distance between fly and ball
-        self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
+
+        if self.flytrack is not None and self.balltrack is not None:
+            self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
 
     def get_arena_metadata(self):
         """
@@ -485,7 +491,7 @@ class Fly:
 
     def find_interaction_events(
         self,
-        gap_between_events=2,
+        gap_between_events=4,
         event_min_length=2,
         thresh=[0, 70],
         omit_events=None,
@@ -496,9 +502,9 @@ class Fly:
         This function finds events in a signal derived from the flyball_positions attribute based on certain criteria.
 
         Parameters:
-        gap_between_events (int): The minimum gap required between two events, expressed in seconds. Defaults to 2.
-        event_min_length (int): The minimum length of an event, expressed in seconds. Defaults to 2.
-        thresh (list): The lower and upper limit values (in pixels) for the signal to be considered an event. Defaults to [0, 70].
+        gap_between_events (int): The minimum gap required between two events, expressed in seconds.
+        event_min_length (int): The minimum length of an event, expressed in seconds.
+        thresh (list): The lower and upper limit values (in pixels) for the signal to be considered an event.
         omit_events (list, optional): A range of events to omit. Defaults to None.
         plot_signals (bool, optional): Whether to plot the signals or not. Defaults to False.
         signal_name (str, optional): The name of the signal. Defaults to "".
@@ -791,16 +797,45 @@ class Fly:
             os.remove(clip_path)
         print(f"Finished processing {vidname}!")
 
-    def generate_preview(self, speed=60, save=False, output_path=None):
+    def draw_circles(self, frame, flyball_coordinates):
+        """
+        Draw circles at the positions of the fly and ball in a video frame.
+
+        Parameters:
+        frame (numpy.ndarray): The video frame.
+        fly_coordinates (pandas.Series): The tracking data for the fly.
+        ball_coordinates (pandas.Series): The tracking data for the ball.
+        frame_number (int): The number of the frame.
+
+        Returns:
+        numpy.ndarray: The video frame with the circles.
+        """
+
+        # Extract the x and y coordinates from the pandas Series
+        fly_pos = tuple(
+            map(int, [flyball_coordinates["xfly"], flyball_coordinates["yfly"]])
+        )
+        ball_pos = tuple(
+            map(int, [flyball_coordinates["xball"], flyball_coordinates["yball"]])
+        )
+
+        # Draw a circle at each position
+        cv2.circle(frame, fly_pos, 10, (0, 0, 255), -1)
+        cv2.circle(frame, ball_pos, 10, (255, 0, 0), -1)
+
+        return frame
+
+    def generate_preview(self, speed=60.0, save=False, preview=False, output_path=None, tracks=True):
         """
         Generate an accelerated version of the video using moviepy.
 
-        This method uses the ffmpeg command-line tool to speed up the video if the 'save' parameter is True. If 'save' is False, it uses the moviepy library to speed up the video and preview it using Pygame.
+        This method uses the moviepy library to speed up the video, add circles at the positions of the fly and ball in each frame if tracking data is provided, and either save the resulting video or preview it using Pygame.
 
         Parameters:
         speed (float): The speedup factor. For example, 2.0 will double the speed of the video.
-        save (bool, optional): Whether to save the sped up video. If True, the video is saved using ffmpeg. If False, the video is previewed using Pygame. Defaults to False.
+        save (bool, optional): Whether to save the sped up video. If True, the video is saved. If False, the video is previewed using Pygame. Defaults to False.
         output_path (str, optional): The path to save the sped up video. If not provided and save is True, a default path will be used. Defaults to None.
+        tracks (dict, optional): A dictionary containing the tracking data for the fly and ball. Each key should be a string ('fly' or 'ball') and each value should be a numpy array with the x and y coordinates for each frame. Defaults to None.
         """
 
         if save and output_path is None:
@@ -812,21 +847,44 @@ class Fly:
                 / f"{self.name}_{self.Genotype if self.Genotype else 'undefined'}_x{speed}.mp4"
             )
 
-        # Construct the ffmpeg command
-        cmd = f"ffmpeg -i {self.video} -vf 'setpts={1/speed}*PTS' -loglevel panic {output_path}"
+        # Load the video file
+        clip = VideoFileClip(self.video.as_posix())
 
-        # Execute the command
+        # If tracks is True, add circles to the video
+
+        # Create a new video clip with the draw_circles function applied to each frame
+        if tracks:
+            # Check if tracking data is available
+            if self.flyball_positions is None:
+                raise ValueError("No tracking data available.")
+
+            # Create a new video clip with the draw_circles function applied to each frame
+            marked_clip = VideoClip(
+                lambda t: self.draw_circles(
+                    clip.get_frame(t),
+                    self.flyball_positions.loc[
+                        round(t * clip.fps)  # Ensure correct frame is accessed
+                    ],
+                ),
+                duration=clip.duration,
+            )
+        else:
+            marked_clip = clip
+
+        # Apply speed effect
+        sped_up_clip = marked_clip.fx(vfx.speedx, speed)
+
+        # If saving, write the new video clip to a file
         if save:
             print(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
+            sped_up_clip.write_videofile(str(output_path), fps=clip.fps)  # Save the sped-up clip
 
-            subprocess.call(cmd, shell=True)
-        else:
-            # Load the video file
-            clip = VideoFileClip(self.video.as_posix())
-
-            # Apply speed effect
-            sped_up_clip = clip.fx(vfx.speedx, speed)
-            # Preview the sped up video (perhaps with show)
+        # If not saving, preview the new video clip
+        if preview:
+            # Check if running over SSH
+            if 'SSH_CLIENT' in os.environ or 'SSH_TTY' in os.environ:
+                raise EnvironmentError("Preview mode shouldn't be run over SSH. Set preview argument to False or run locally.")
+            
             # Initialize Pygame display
             pygame.display.init()
 
@@ -835,18 +893,23 @@ class Fly:
 
             print(f"Previewing {self.video.name} at {speed}x speed")
 
-            sped_up_clip.preview(
-                fps=self.experiment.fps * speed,
-            )
-
-            # Close the video file to release resources
-            clip.close()
+            sped_up_clip.preview(fps=self.experiment.fps * speed)
 
             # Manually close the preview window
             pygame.quit()
 
+        # Close the video file to release resources
+        clip.close()
+        
+        if not save and not preview:
+            print("No action specified. Set save or preview argument to True.")
+
 
 class Experiment:
+    """
+    A class for an experiment. This represents a folder containing multiple flies, each of which is represented by a Fly object.
+    """
+    
     def __init__(self, directory):
         """
         Parameters
@@ -925,36 +988,50 @@ class Experiment:
 class Dataset:
     def __init__(self, source):
         """
-        A class to generate a dataset from mazerecorder videos.
+        A class to generate a dataset Experiments and Fly objects.
 
         Parameters
         ----------
         source : can either be a list of Experiment objects, one Experiment object, a list of Fly objects or one Fly object.
 
         """
-
+        # Define the experiments and flies attributes
         if isinstance(source, list):
-            # If the source is a list, check if it contains Experiment objects or Fly objects
+            # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
             if isinstance(source[0], Experiment):
                 # If the source contains Experiment objects, generate a dataset from the experiments
-                self.dataset = self.generate_dataset_from_experiments(source)
-            elif isinstance(source[0], Fly):
-                # If the source contains Fly objects, generate a dataset from the flies
-                self.dataset = self.generate_dataset_from_flies(source)
+                self.experiments = source
+                
+                self.flies = [fly for experiment in self.experiments for fly in experiment.flies]
+
+            elif isinstance(source[0], Fly) :
+                
+                # make a list of distinct experiments associated with the flies
+                self.experiments = list(set([fly.experiment for fly in source]))
+                
+                self.flies = source
+                   
             else:
                 raise TypeError(
-                    "Invalid source format: source must be a list of Experiment objects or a list of Fly objects"
+                    "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
+                
         elif isinstance(source, Experiment):
             # If the source is an Experiment object, generate a dataset from the experiment
-            self.dataset = self.generate_dataset_from_experiments([source])
+                self.experiments = [source]
+                
+                self.flies = source.flies
+                
         elif isinstance(source, Fly):
             # If the source is a Fly object, generate a dataset from the fly
-            self.dataset = self.generate_dataset_from_flies([source])
+            self.experiments = [source.experiment]
+            
+            self.flies = [source]
         else:
             raise TypeError(
-                "Invalid source format: source must be a list of Experiment objects or a list of Fly objects"
-            )
+                    "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
+                )
+            
 
     # def generate_dataset_from_experiments(self, experiments):
     # TODO: implement this function
