@@ -9,6 +9,7 @@ import traceback
 import json
 import datetime
 import subprocess
+from collections import Counter
 
 import cv2
 from moviepy.editor import VideoClip
@@ -458,6 +459,15 @@ class Fly:
         if self.flytrack is not None and self.balltrack is not None:
             self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
 
+    def __str__(self):
+        # Get the genotype from the metadata
+        genotype = self.arena_metadata["Genotype"]
+
+        return f"Fly: {self.name}\nArena: {self.arena}\nCorridor: {self.corridor}\nVideo: {self.video}\nFlytrack: {self.flytrack}\nBalltrack: {self.balltrack}\nGenotype: {genotype}"
+
+    def __repr__(self):
+        return f"Fly({self.directory})"
+
     def get_arena_metadata(self):
         """
         Retrieve the metadata for the Fly object's arena.
@@ -825,7 +835,9 @@ class Fly:
 
         return frame
 
-    def generate_preview(self, speed=60.0, save=False, preview=False, output_path=None, tracks=True):
+    def generate_preview(
+        self, speed=60.0, save=False, preview=False, output_path=None, tracks=True
+    ):
         """
         Generate an accelerated version of the video using moviepy.
 
@@ -877,14 +889,18 @@ class Fly:
         # If saving, write the new video clip to a file
         if save:
             print(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
-            sped_up_clip.write_videofile(str(output_path), fps=clip.fps)  # Save the sped-up clip
+            sped_up_clip.write_videofile(
+                str(output_path), fps=clip.fps
+            )  # Save the sped-up clip
 
         # If not saving, preview the new video clip
         if preview:
             # Check if running over SSH
-            if 'SSH_CLIENT' in os.environ or 'SSH_TTY' in os.environ:
-                raise EnvironmentError("Preview mode shouldn't be run over SSH. Set preview argument to False or run locally.")
-            
+            if "SSH_CLIENT" in os.environ or "SSH_TTY" in os.environ:
+                raise EnvironmentError(
+                    "Preview mode shouldn't be run over SSH. Set preview argument to False or run locally."
+                )
+
             # Initialize Pygame display
             pygame.display.init()
 
@@ -900,7 +916,7 @@ class Fly:
 
         # Close the video file to release resources
         clip.close()
-        
+
         if not save and not preview:
             print("No action specified. Set save or preview argument to True.")
 
@@ -909,7 +925,7 @@ class Experiment:
     """
     A class for an experiment. This represents a folder containing multiple flies, each of which is represented by a Fly object.
     """
-    
+
     def __init__(self, directory):
         """
         Parameters
@@ -930,6 +946,15 @@ class Experiment:
         self.metadata = self.load_metadata()
         self.fps = self.load_fps()
         self.flies = self.load_flies()
+
+    def __str__(self):
+        # Generate a list of unique genotypes from the flies in the experiment
+        tested_genotypes = list(set([fly.Genotype for fly in self.flies]))
+
+        return f"Experiment: {self.directory.name}\n  Genotypes: {', '.join(tested_genotypes)}\n  Flies: {len(self.flies)}\n  FPS: {self.fps}"
+
+    def __repr__(self):
+        return f"Experiment({self.directory})"
 
     def load_metadata(self):
         with open(self.directory / "Metadata.json", "r") as f:
@@ -995,43 +1020,80 @@ class Dataset:
         source : can either be a list of Experiment objects, one Experiment object, a list of Fly objects or one Fly object.
 
         """
+        self.source = source
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
             if isinstance(source[0], Experiment):
                 # If the source contains Experiment objects, generate a dataset from the experiments
                 self.experiments = source
-                
-                self.flies = [fly for experiment in self.experiments for fly in experiment.flies]
 
-            elif isinstance(source[0], Fly) :
-                
+                self.flies = [
+                    fly for experiment in self.experiments for fly in experiment.flies
+                ]
+
+            elif isinstance(source[0], Fly):
                 # make a list of distinct experiments associated with the flies
                 self.experiments = list(set([fly.experiment for fly in source]))
-                
+
                 self.flies = source
-                   
+
             else:
                 raise TypeError(
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
-                
+
         elif isinstance(source, Experiment):
             # If the source is an Experiment object, generate a dataset from the experiment
-                self.experiments = [source]
-                
-                self.flies = source.flies
-                
+            self.experiments = [source]
+
+            self.flies = source.flies
+
         elif isinstance(source, Fly):
             # If the source is a Fly object, generate a dataset from the fly
             self.experiments = [source.experiment]
-            
+
             self.flies = [source]
         else:
             raise TypeError(
-                    "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
-                )
-            
+                "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
+            )
+
+    def __str__(self):
+        # Look for recurring words in the experiment names
+        experiment_names = [
+            experiment.directory.name for experiment in self.experiments
+        ]
+        experiment_names = "_".join(experiment_names)
+        experiment_names = experiment_names.split("_")  # Split by "_"
+
+        # Ignore certain labels
+        labels_to_ignore = {"Tracked", "Videos"}
+        experiment_names = [name for name in experiment_names if name not in labels_to_ignore]
+
+        # Ignore words that are found only once
+        experiment_names = [name for name in experiment_names if experiment_names.count(name) > 1]
+        
+        experiment_names = Counter(experiment_names)
+        experiment_names = experiment_names.most_common(3)
+        experiment_names = [name for name, _ in experiment_names]
+        experiment_names = ", ".join(experiment_names)
+
+        return f"Dataset with {len(self.flies)} flies and {len(self.experiments)} experiments\nkeyword: {experiment_names}"
+
+
+    def __repr__(self):
+        # Adapt the repr function to the source attribute
+        # If the source is a list, check if it is Fly or Experiment objects
+        if isinstance(self.source, list):
+            if isinstance(self.source[0], Experiment):
+                return f"Dataset({[experiment.directory for experiment in self.experiments]})"
+            elif isinstance(self.source[0], Fly):
+                return f"Dataset({[fly.directory for fly in self.flies]})"
+        elif isinstance(self.source, Experiment):
+            return f"Dataset({self.experiments[0].directory})"
+        elif isinstance(self.source, Fly):
+            return f"Dataset({self.flies[0].directory})"
 
     # def generate_dataset_from_experiments(self, experiments):
     # TODO: implement this function
