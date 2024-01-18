@@ -446,18 +446,28 @@ class Fly:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
             # print(flypath.name)
         except IndexError:
-            print(f"No fly tracking file found for {self.name}, skipping...")
+            self.flytrack = None
+            # print(f"No fly tracking file found for {self.name}, skipping...")
 
         try:
             self.balltrack = list(directory.glob("*tracked_ball*.analysis.h5"))[0]
             # print(ballpath.name)
         except IndexError:
-            print(f"No ball tracking file found for {self.name}, skipping...")
+            self.balltrack = None
+            # print(f"No ball tracking file found for {self.name}, skipping...")
 
         # Compute distance between fly and ball
 
         if self.flytrack is not None and self.balltrack is not None:
             self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
+        else:
+            self.flyball_positions = None
+
+        try:
+            self.start, self.end = np.load(self.directory / "coordinates.npy")
+        except FileNotFoundError:
+            # TODO: adapt Boundaries_detection.py to work with Fly and Experiment objects
+            self.start, self.end = None, None
 
     def __str__(self):
         # Get the genotype from the metadata
@@ -1069,18 +1079,21 @@ class Dataset:
 
         # Ignore certain labels
         labels_to_ignore = {"Tracked", "Videos"}
-        experiment_names = [name for name in experiment_names if name not in labels_to_ignore]
+        experiment_names = [
+            name for name in experiment_names if name not in labels_to_ignore
+        ]
 
         # Ignore words that are found only once
-        experiment_names = [name for name in experiment_names if experiment_names.count(name) > 1]
-        
+        experiment_names = [
+            name for name in experiment_names if experiment_names.count(name) > 1
+        ]
+
         experiment_names = Counter(experiment_names)
         experiment_names = experiment_names.most_common(3)
         experiment_names = [name for name, _ in experiment_names]
         experiment_names = ", ".join(experiment_names)
 
         return f"Dataset with {len(self.flies)} flies and {len(self.experiments)} experiments\nkeyword: {experiment_names}"
-
 
     def __repr__(self):
         # Adapt the repr function to the source attribute
@@ -1095,5 +1108,11 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    # def generate_dataset_from_experiments(self, experiments):
+    def generate_dataset_from_experiments(self, experiments):
+        """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
+
+        Args:
+            experiments (list): A list of Experiment objects.
+        """
+
     # TODO: implement this function
