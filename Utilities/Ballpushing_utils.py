@@ -724,6 +724,20 @@ class Fly:
 
         # Return the list of events
         return events
+    
+    def annotate_events(self):
+        """Creates a new column in the flyball_positions DataFrame containing the event number for each frame. If no event is found for a frame, the value in the column is set to None.
+        """
+        
+        events = self.find_interaction_events()
+        
+        self.flyball_positions["event"] = None
+        
+        for i, event in enumerate(events, start=1):
+            start, end = event[0], event[1]
+            
+            self.flyball_positions.loc[start:end, 'event'] = i
+        
 
     def check_yball_variation(self, event, threshold=10):
         """
@@ -1207,7 +1221,7 @@ class Experiment:
 
 
 class Dataset:
-    def __init__(self, source):
+    def __init__(self, source, interactions = True):
         """
         A class to generate a dataset Experiments and Fly objects.
 
@@ -1217,6 +1231,7 @@ class Dataset:
 
         """
         self.source = source
+        self.interactions = interactions
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
@@ -1255,7 +1270,7 @@ class Dataset:
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
 
-        self.data = self.generate_dataset(self.experiments)
+        self.data = self.generate_dataset()
 
     def __str__(self):
         # Look for recurring words in the experiment names
@@ -1296,29 +1311,45 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    def generate_dataset(self, experiments):
+    def generate_dataset(self):
         """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
 
         Args:
             experiments (list): A list of Experiment objects.
         """
 
-        dataset_list = []
+        try:
+            dataset_list = [
+                self._prepare_dataset(fly) for fly in self.flies
+            ]
 
-        # For each fly in each experiment, get the flyball_positions attribute
+            self.data = pd.concat(dataset_list, ignore_index=True).reset_index(drop=True)
 
-        
-        for fly in self.flies:
-            dataset = fly.flyball_positions
-
-            # Add a column with the fly name as categorical data
-            dataset["fly"] = fly.name
-
-            # Add a column with the experiment name as categorical data
-            dataset["experiment"] = fly.experiment.directory.name
-
-            dataset_list.append(dataset)
-
-        self.data = pd.concat(dataset_list, ignore_index=True).reset_index()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            self.data = pd.DataFrame()
 
         return self.data
+
+    def _prepare_dataset(self, fly):
+        """Helper function to prepare individual fly dataset."""
+
+        dataset = fly.flyball_positions
+
+        if self.interactions:
+            fly.annotate_events()
+
+        # Add a column with the fly name as categorical data
+        dataset["fly"] = fly.name
+        dataset["fly"] = dataset["fly"].astype("category")
+
+        # Add a column with the experiment name as categorical data
+        dataset["experiment"] = fly.experiment.directory.name
+        dataset["experiment"] = dataset["experiment"].astype("category")
+
+        # Add the metadata for the fly's arena as columns
+        for var, data in fly.arena_metadata.items():
+            dataset[var] = data
+            dataset[var] = dataset[var].astype("category")
+
+        return dataset
