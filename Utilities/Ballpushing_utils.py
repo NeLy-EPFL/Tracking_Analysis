@@ -49,214 +49,214 @@ def replace_nans_with_previous_value(arr):
         arr[i] = arr[i - 1]
 
 
-def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
-    """Generates a dataset from a list of folders containing videos, tracking files and metadata files
+# def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
+#     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
 
 
-    Args:
-        Folders (list): A list of folders containing videos, tracking files and metadata files
-        fly (bool, optional): Whether to extract the fly coordinates. Defaults to True.
-        ball (bool, optional): Whether to extract the ball coordinates. Defaults to True.
-        xvals (bool, optional): Whether to extract the x coordinates. Defaults to False.
-        fps (int, optional): The frame rate of the videos. Defaults to 30.
+#     Args:
+#         Folders (list): A list of folders containing videos, tracking files and metadata files
+#         fly (bool, optional): Whether to extract the fly coordinates. Defaults to True.
+#         ball (bool, optional): Whether to extract the ball coordinates. Defaults to True.
+#         xvals (bool, optional): Whether to extract the x coordinates. Defaults to False.
+#         fps (int, optional): The frame rate of the videos. Defaults to 30.
 
-    Returns:
-        Dataset (pandas dataframe): A dataframe containing the data from all the videos in the list of folders
-    """
+#     Returns:
+#         Dataset (pandas dataframe): A dataframe containing the data from all the videos in the list of folders
+#     """
 
-    Flycount = 0
-    Dataset_list = []
+#     Flycount = 0
+#     Dataset_list = []
 
-    for folder in Folders:
-        print(f"Processing {folder}...")
-        # Read the metadata.json file
-        with open(folder / "Metadata.json", "r") as f:
-            metadata = json.load(f)
-            variables = metadata["Variable"]
-            metadata_dict = {}
-            for var in variables:
-                metadata_dict[var] = {}
-                for arena in range(1, 10):
-                    arena_key = f"Arena{arena}"
-                    var_index = variables.index(var)
-                    metadata_dict[var][arena_key] = metadata[arena_key][var_index]
+#     for folder in Folders:
+#         print(f"Processing {folder}...")
+#         # Read the metadata.json file
+#         with open(folder / "Metadata.json", "r") as f:
+#             metadata = json.load(f)
+#             variables = metadata["Variable"]
+#             metadata_dict = {}
+#             for var in variables:
+#                 metadata_dict[var] = {}
+#                 for arena in range(1, 10):
+#                     arena_key = f"Arena{arena}"
+#                     var_index = variables.index(var)
+#                     metadata_dict[var][arena_key] = metadata[arena_key][var_index]
 
-            # In the metadata_dict, make all they Arena subkeys lower case
+#             # In the metadata_dict, make all they Arena subkeys lower case
 
-            for var in variables:
-                metadata_dict[var] = {
-                    k.lower(): v for k, v in metadata_dict[var].items()
-                }
-            # print(metadata_dict)
+#             for var in variables:
+#                 metadata_dict[var] = {
+#                     k.lower(): v for k, v in metadata_dict[var].items()
+#                 }
+#             # print(metadata_dict)
 
-            files = list(folder.glob("**/*.mp4"))
+#             files = list(folder.glob("**/*.mp4"))
 
-        for file in files:
-            # print(file.name)
-            # Get the arena and corridor numbers from the parent (corridor) and grandparent (arena) folder names
-            arena = file.parent.parent.name
-            # print(arena)
-            corridor = file.parent.name
+#         for file in files:
+#             # print(file.name)
+#             # Get the arena and corridor numbers from the parent (corridor) and grandparent (arena) folder names
+#             arena = file.parent.parent.name
+#             # print(arena)
+#             corridor = file.parent.name
 
-            start, end = np.load(file.parent / "coordinates.npy")
+#             start, end = np.load(file.parent / "coordinates.npy")
 
-            dir = file.parent
+#             dir = file.parent
 
-            # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
-            try:
-                flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
-                # print(flypath.name)
-            except IndexError:
-                # print(f"No fly tracking file found for {file.name}, skipping...")
+#             # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
+#             try:
+#                 flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
+#                 # print(flypath.name)
+#             except IndexError:
+#                 # print(f"No fly tracking file found for {file.name}, skipping...")
 
-                continue
+#                 continue
 
-            # Define ballpath as the *tracked*.analysis.h5 file in the same folder as the video
-            try:
-                ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
-                # print(ballpath.name)
-            except IndexError:
-                print(f"No ball tracking file found for {file.name}, skipping...")
+#             # Define ballpath as the *tracked*.analysis.h5 file in the same folder as the video
+#             try:
+#                 ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
+#                 # print(ballpath.name)
+#             except IndexError:
+#                 print(f"No ball tracking file found for {file.name}, skipping...")
 
-                continue
+#                 continue
 
-            try:
-                # Extract interaction events and mark them in the DataFrame
+#             try:
+#                 # Extract interaction events and mark them in the DataFrame
 
-                data = get_coordinates(
-                    ballpath, flypath, ball=ball, fly=fly, xvals=xvals
-                )
+#                 data = get_coordinates(
+#                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
+#                 )
 
-                # print(data.head())
-                # Apply savgol_lowpass_filter to each column that is not Frame or time
-                # for col in data.columns:
-                #     if col not in ["Frame", "time"]:
-                #         data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
+#                 # print(data.head())
+#                 # Apply savgol_lowpass_filter to each column that is not Frame or time
+#                 # for col in data.columns:
+#                 #     if col not in ["Frame", "time"]:
+#                 #         data[f"{col}_smooth"] = savgol_lowpass_filter(data[col], 221, 1)
 
-                data["start"] = start
-                data["end"] = end
-                data["arena"] = arena
-                data["corridor"] = corridor
-                Flycount += 1
-                data["Fly"] = f"Fly {Flycount}"
+#                 data["start"] = start
+#                 data["end"] = end
+#                 data["arena"] = arena
+#                 data["corridor"] = corridor
+#                 Flycount += 1
+#                 data["Fly"] = f"Fly {Flycount}"
 
-                if "Flipped" in folder.name:
-                    # print(
-                    #     f"Flipped video, flipping ball and fly y coordinates, flipping start and end."
-                    # )
-                    data["yball_smooth"] = -data["yball_smooth"]
-                    data["yfly_smooth"] = -data["yfly_smooth"]
-                    # start = -start
+#                 if "Flipped" in folder.name:
+#                     # print(
+#                     #     f"Flipped video, flipping ball and fly y coordinates, flipping start and end."
+#                     # )
+#                     data["yball_smooth"] = -data["yball_smooth"]
+#                     data["yfly_smooth"] = -data["yfly_smooth"]
+#                     # start = -start
 
-                # Compute yball_relative relative to start
-                data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
+#                 # Compute yball_relative relative to start
+#                 data["yball_relative"] = abs(data["yball_smooth"] - data["start"])
 
-                # Fill missing values using linear interpolation
-                data["yball_relative"] = data["yball_relative"].interpolate(
-                    method="linear"
-                )
+#                 # Fill missing values using linear interpolation
+#                 data["yball_relative"] = data["yball_relative"].interpolate(
+#                     method="linear"
+#                 )
 
-                # Add all the metadata categories to the DataFrame
-                for var in variables:
-                    data[var] = metadata_dict[var][arena]
+#                 # Add all the metadata categories to the DataFrame
+#                 for var in variables:
+#                     data[var] = metadata_dict[var][arena]
 
-                # Append the data to the all_data DataFrame
-                if Events == "interactions":
-                    # Compute interaction events for all data
-                    interaction_events = find_interaction_events(data)
+#                 # Append the data to the all_data DataFrame
+#                 if Events == "interactions":
+#                     # Compute interaction events for all data
+#                     interaction_events = find_interaction_events(data)
 
-                    # Assign an event number to each event
-                    for i, (start_time, end_time) in enumerate(
-                        interaction_events, start=1
-                    ):
-                        data.loc[
-                            (data.Frame >= start_time) & (data.Frame <= end_time),
-                            "Event",
-                        ] = i
+#                     # Assign an event number to each event
+#                     for i, (start_time, end_time) in enumerate(
+#                         interaction_events, start=1
+#                     ):
+#                         data.loc[
+#                             (data.Frame >= start_time) & (data.Frame <= end_time),
+#                             "Event",
+#                         ] = i
 
-                Dataset_list.append(data)
+#                 Dataset_list.append(data)
 
-            except Exception as e:
-                error_message = str(e)
-                traceback_message = traceback.format_exc()
-                # print(f"Error processing video {vidname}: {error_message}")
-                print(traceback_message)
+#             except Exception as e:
+#                 error_message = str(e)
+#                 traceback_message = traceback.format_exc()
+#                 # print(f"Error processing video {vidname}: {error_message}")
+#                 print(traceback_message)
 
-    # Concatenate all dataframes in the list into a single dataframe
-    Dataset = pd.concat(Dataset_list, ignore_index=True).reset_index()
+#     # Concatenate all dataframes in the list into a single dataframe
+#     Dataset = pd.concat(Dataset_list, ignore_index=True).reset_index()
 
-    return Dataset
+#     return Dataset
 
 
-def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=True):
-    """Extracts the coordinates from the ball and fly paths.
+# def get_coordinates(ballpath=None, flypath=None, ball=True, fly=True, xvals=True):
+#     """Extracts the coordinates from the ball and fly paths.
 
-    Parameters:
-        ballpath (str): The path to the ball path file.
-        flypath (str): The path to the fly path file.
-        ball (bool): Whether to extract the ball coordinates.
-        fly (bool): Whether to extract the fly coordinates.
+#     Parameters:
+#         ballpath (str): The path to the ball path file.
+#         flypath (str): The path to the fly path file.
+#         ball (bool): Whether to extract the ball coordinates.
+#         fly (bool): Whether to extract the fly coordinates.
 
-    Returns:
-        data (pd.DataFrame): The coordinates of the ball and fly.
-    """
-    data = []
-    columns = []
+#     Returns:
+#         data (pd.DataFrame): The coordinates of the ball and fly.
+#     """
+#     data = []
+#     columns = []
 
-    if ball:
-        xball, yball = extract_coordinates(ballpath.as_posix())
+#     if ball:
+#         xball, yball = extract_coordinates(ballpath.as_posix())
 
-        # Replace NaNs in yball
-        replace_nans_with_previous_value(yball)
+#         # Replace NaNs in yball
+#         replace_nans_with_previous_value(yball)
 
-        # Replace NaNs in xball
-        replace_nans_with_previous_value(xball)
+#         # Replace NaNs in xball
+#         replace_nans_with_previous_value(xball)
 
-        data.append(yball)
-        columns.append("yball")
+#         data.append(yball)
+#         columns.append("yball")
 
-        if xvals:
-            data.append(xball)
-            columns.append("xball")
+#         if xvals:
+#             data.append(xball)
+#             columns.append("xball")
 
-    if fly:
-        xfly, yfly = extract_coordinates(flypath.as_posix())
+#     if fly:
+#         xfly, yfly = extract_coordinates(flypath.as_posix())
 
-        # Replace NaNs in yfly
-        replace_nans_with_previous_value(yfly)
+#         # Replace NaNs in yfly
+#         replace_nans_with_previous_value(yfly)
 
-        # Replace NaNs in xfly
-        replace_nans_with_previous_value(xfly)
+#         # Replace NaNs in xfly
+#         replace_nans_with_previous_value(xfly)
 
-        data.append(yfly)
-        columns.append("yfly")
+#         data.append(yfly)
+#         columns.append("yfly")
 
-        if xvals:
-            data.append(xfly)
-            columns.append("xfly")
+#         if xvals:
+#             data.append(xfly)
+#             columns.append("xfly")
 
-    # Combine the x and y arrays into a single 2D array
-    data = np.stack(data, axis=1)
+#     # Combine the x and y arrays into a single 2D array
+#     data = np.stack(data, axis=1)
 
-    # Convert the 2D array into a DataFrame
-    data = pd.DataFrame(data, columns=columns)
+#     # Convert the 2D array into a DataFrame
+#     data = pd.DataFrame(data, columns=columns)
 
-    data = data.assign(Frame=data.index + 1)
+#     data = data.assign(Frame=data.index + 1)
 
-    data["Frame"] = data["Frame"].astype(int)
+#     data["Frame"] = data["Frame"].astype(int)
 
-    data["time"] = data["Frame"] / 30
+#     data["time"] = data["Frame"] / 30
 
-    if ball:
-        data["yball_smooth"] = savgol_lowpass_filter(data["yball"], 221, 1)
-        if xvals:
-            data["xball_smooth"] = savgol_lowpass_filter(data["xball"], 221, 1)
-    if fly:
-        data["yfly_smooth"] = savgol_lowpass_filter(data["yfly"], 221, 1)
-        if xvals:
-            data["xfly_smooth"] = savgol_lowpass_filter(data["xfly"], 221, 1)
+#     if ball:
+#         data["yball_smooth"] = savgol_lowpass_filter(data["yball"], 221, 1)
+#         if xvals:
+#             data["xball_smooth"] = savgol_lowpass_filter(data["xball"], 221, 1)
+#     if fly:
+#         data["yfly_smooth"] = savgol_lowpass_filter(data["yfly"], 221, 1)
+#         if xvals:
+#             data["xfly_smooth"] = savgol_lowpass_filter(data["xfly"], 221, 1)
 
-    return data
+#     return data
 
 
 # def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
@@ -458,13 +458,6 @@ class Fly:
             self.balltrack = None
             # print(f"No ball tracking file found for {self.name}, skipping...")
 
-        # Compute distance between fly and ball
-
-        if self.flytrack is not None and self.balltrack is not None:
-            self.flyball_positions = get_coordinates(self.balltrack, self.flytrack)
-        else:
-            self.flyball_positions = None
-
         # Check if the coordinates.npy file exists in the fly directory
 
         if not (self.directory / "coordinates.npy").exists():
@@ -475,6 +468,13 @@ class Fly:
             self.experiment.detect_boundaries()
 
         self.start, self.end = np.load(self.directory / "coordinates.npy")
+
+        # Compute distance between fly and ball
+
+        if self.flytrack is not None and self.balltrack is not None:
+            self.flyball_positions = self.get_coordinates(self.balltrack, self.flytrack)
+        else:
+            self.flyball_positions = None
 
     def __str__(self):
         # Get the genotype from the metadata
@@ -515,6 +515,85 @@ class Fly:
         # Print the metadata for this fly's arena
         for var, data in self.arena_metadata.items():
             print(f"{var}: {data}")
+
+    def get_coordinates(self, ball=True, fly=True, xvals=True):
+        """Extracts the coordinates from the ball and fly h5 sleap data.
+
+        Parameters:
+            ball (bool): Whether to extract the ball coordinates.
+            fly (bool): Whether to extract the fly coordinates.
+            xvals (bool): Whether to extract the x coordinates.
+
+        Returns:
+            data (pd.DataFrame): The coordinates of the ball and fly.
+        """
+        data = []
+        columns = []
+
+        if ball:
+            xball, yball = extract_coordinates(self.balltrack.as_posix())
+
+            # Replace NaNs in yball
+            replace_nans_with_previous_value(yball)
+
+            # Replace NaNs in xball
+            replace_nans_with_previous_value(xball)
+
+            data.append(yball)
+            columns.append("yball")
+
+            if xvals:
+                data.append(xball)
+                columns.append("xball")
+
+        if fly:
+            xfly, yfly = extract_coordinates(self.flytrack.as_posix())
+
+            # Replace NaNs in yfly
+            replace_nans_with_previous_value(yfly)
+
+            # Replace NaNs in xfly
+            replace_nans_with_previous_value(xfly)
+
+            data.append(yfly)
+            columns.append("yfly")
+
+            if xvals:
+                data.append(xfly)
+                columns.append("xfly")
+
+        # Combine the x and y arrays into a single 2D array
+        data = np.stack(data, axis=1)
+
+        # Convert the 2D array into a DataFrame
+        data = pd.DataFrame(data, columns=columns)
+
+        data = data.assign(Frame=data.index + 1)
+
+        data["Frame"] = data["Frame"].astype(int)
+
+        data["time"] = data["Frame"] / self.experiment.fps
+
+        if ball:
+            data["yball_smooth"] = savgol_lowpass_filter(data["yball"], 221, 1)
+            if xvals:
+                data["xball_smooth"] = savgol_lowpass_filter(data["xball"], 221, 1)
+        if fly:
+            data["yfly_smooth"] = savgol_lowpass_filter(data["yfly"], 221, 1)
+            if xvals:
+                data["xfly_smooth"] = savgol_lowpass_filter(data["xfly"], 221, 1)
+
+        if self.start:
+            data["yfly_relative"] = abs(data["yfly_smooth"] - self.start)
+
+            # Fill missing values using linear interpolation
+            data["yfly_relative"] = data["yfly_relative"].interpolate(method="linear")
+
+            data["yball_relative"] = abs(data["yball_smooth"] - self.start)
+
+            data["yball_relative"] = data["yball_relative"].interpolate(method="linear")
+
+        return data
 
     def find_interaction_events(
         self,
@@ -1036,7 +1115,7 @@ class Experiment:
         ----------
         threshold : int
             The threshold value to apply to the summed pixel values for a binary thresholding. Defaults to 100.
-            
+
         preview : bool
             Whether to preview the grid image or not. Defaults to False.
 
@@ -1122,7 +1201,7 @@ class Experiment:
 
         # Save the grid image in the main folder
         plt.savefig(self.directory / "grid.png")
-        
+
         if preview == True:
             plt.show()
 
@@ -1176,6 +1255,8 @@ class Dataset:
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
 
+        self.data = self.generate_dataset(self.experiments)
+
     def __str__(self):
         # Look for recurring words in the experiment names
         experiment_names = [
@@ -1215,11 +1296,29 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    def generate_dataset_from_experiments(self, experiments):
+    def generate_dataset(self, experiments):
         """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
 
         Args:
             experiments (list): A list of Experiment objects.
         """
 
-    # TODO: implement this function
+        dataset_list = []
+
+        # For each fly in each experiment, get the flyball_positions attribute
+
+        
+        for fly in self.flies:
+            dataset = fly.flyball_positions
+
+            # Add a column with the fly name as categorical data
+            dataset["fly"] = fly.name
+
+            # Add a column with the experiment name as categorical data
+            dataset["experiment"] = fly.experiment.directory.name
+
+            dataset_list.append(dataset)
+
+        self.data = pd.concat(dataset_list, ignore_index=True).reset_index()
+
+        return self.data
