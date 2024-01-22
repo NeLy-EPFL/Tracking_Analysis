@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import holoviews as hv
+
 
 from scipy.ndimage import median_filter, gaussian_filter
 from pathlib import Path
@@ -12,6 +14,7 @@ import json
 import datetime
 import subprocess
 from collections import Counter
+import pickle
 
 import cv2
 from moviepy.editor import VideoClip
@@ -24,10 +27,44 @@ sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
 from Utilities.Utils import *
 from Utilities.Processing import *
+from HoloviewsTemplates import hv_main
 
 brain_regions_path = (
     "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv"
 )
+
+
+def save_object(obj, filename):
+    """Save a custom object as a pickle file.
+
+    Args:
+        obj (object): The object to be saved.
+        filename (Pathlib path): the path where to save the object. No need to add the .pkl extension.
+    """
+
+    # If the filename does not end with .pkl, add it
+    if not filename.endswith(".pkl"):
+        filename = filename.with_suffix(".pkl")
+
+    with open(filename, "wb") as output:
+        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+
+
+def load_object(filename):
+    """Load a custom object from a pickle file.
+
+    Args:
+        filename (Pathlib path): the path to the object. No need to add the .pkl extension.
+    """
+
+    # If the filename does not end with .pkl, add it
+    if not filename.endswith(".pkl"):
+        filename = filename.with_suffix(".pkl")
+
+    with open(filename, "rb") as input:
+        obj = pickle.load(input)
+
+    return obj
 
 
 # def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
@@ -1179,14 +1216,14 @@ class Experiment:
 
         return flies
 
-    def generate_grid(self, preview=False, overwrite = False):
+    def generate_grid(self, preview=False, overwrite=False):
         # Check if the grid image already exists
         if (self.directory / "grid.png").exists() and not overwrite:
             print(f"Grid image already exists for {self.directory.name}")
             return
         else:
             print(f"Generating grid image for {self.directory.name}")
-        
+
             frames = []
             min_rows = []
             paths = []
@@ -1348,7 +1385,7 @@ class Dataset:
         regions_map = pd.read_csv(brain_regions_path)
 
         regions_map = regions_map.rename(columns={"Codename": "Genotype"})
-
+        # TODO: This is circular, it shouldn't be defined in Init because Genotype is not yet defined there.
         self.data = pd.merge(self.data, regions_map, on="Genotype")
 
         return self.data
@@ -1376,5 +1413,34 @@ class Dataset:
 
         return dataset
 
-    # def plot_events():
-    # Group the data by
+    def plot_events(self):
+        # Group the data by Fly and Event
+        GroupedData = (
+            self.data.groupby(["Fly", "Nickname", "Simplified region"])
+            .nunique(["Event"])
+            .reset_index()
+        )
+
+        h_NumbEvents_bp = (
+            hv.BoxWhisker(
+                data=GroupedData,
+                vdims="Event",
+                kdims=["Nickname", "Simplified region"],
+                color="Nickname",
+            )
+            .groupby("Simplified region")
+            .opts(**hv_opts["boxwhisker"])
+        )
+
+        h_NumbEvents_sc = (
+            hv.Scatter(
+                data=GroupedData,
+                vdims="Event",
+                kdims=["Nickname", "Simplified region"],
+                color="Nickname",
+            )
+            .groupby("Simplified region")
+            .opts(**hv_opts["scatter"])
+        )
+
+        hvplot_NumbEvents = (h_NumbEvents_bp * h_NumbEvents_sc).opts(**hv_opts["plot"])
