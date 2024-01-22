@@ -26,29 +26,6 @@ from Utilities.Utils import *
 from Utilities.Processing import *
 
 
-def extract_coordinates(h5_file):
-    with h5py.File(h5_file, "r") as f:
-        locs = f["tracks"][:].T
-        y = locs[:, :, 1, :].squeeze()
-        x = locs[:, :, 0, :].squeeze()
-    return x, y
-
-
-def replace_nans_with_previous_value(arr):
-    # Check if the first value is NaN
-    if np.isnan(arr[0]):
-        # Find the next non-NaN value
-        next_val = arr[next((i for i, x in enumerate(arr) if not np.isnan(x)), None)]
-        arr[0] = next_val
-
-    # Find the indices of the NaN values
-    nan_indices = np.where(np.isnan(arr))
-
-    # Replace the NaN values with the previous value
-    for i in nan_indices[0]:
-        arr[i] = arr[i - 1]
-
-
 # def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
 #     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
 
