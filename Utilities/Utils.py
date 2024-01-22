@@ -38,21 +38,27 @@ def get_data_path(setup="mazerecorder"):
     return datapath
 
 
-def get_folders(path, keywords):
+def get_folders(path, keywords=None):
     """Generates a list of Experiment objects based on keywords.
 
     Args:
         path (str): The path where to look for experiments.
-        keywords (list): A list of keywords to filter the experiments.
+        keywords (list, optional): A list of keywords to filter the experiments. If None, all folders are returned.
 
     Returns:
         list: A list of folders.
     """
 
-    # Get all folders that have all keywords in their name
-    Folders = [
-        f for f in path.iterdir() if all(keyword.lower() in f.name.lower() for keyword in keywords)
-    ]
+    if keywords:
+        # Get all folders that have all keywords in their name
+        Folders = [
+            f
+            for f in path.iterdir()
+            if all(keyword.lower() in f.name.lower() for keyword in keywords)
+        ]
+    else:
+        # Get all folders
+        Folders = list(path.iterdir())
 
     return Folders
 

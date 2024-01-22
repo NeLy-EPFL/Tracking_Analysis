@@ -398,6 +398,29 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
 # TODO: implement icecream
 
 
+def filter_experiments(folders, criteria):
+    """Generates a list of Experiment objects based on criteria.
+
+    Args:
+        folders (list): A list of folders to create Experiment objects from.
+        criteria (dict): A dictionary of criteria to filter the experiments.
+
+    Returns:
+        list: A list of Experiment objects that match the criteria.
+    """
+
+    # Create Experiment objects from the folders
+    Exps = [Experiment(f) for f in folders]
+
+    # Get a list of flies based on the criteria
+    flies = []
+    for exp in Exps:
+        for fly in exp.flies:
+            if all(fly.arena_metadata.get(key) == value for key, value in criteria.items()):
+                flies.append(fly)
+
+    return flies
+
 class Fly:
     """
     A class for a single fly. This represents a folder containing a video, associated tracking files, and metadata files. It is usually contained in an Experiment object, and inherits the Experiment object's metadata.
@@ -724,20 +747,18 @@ class Fly:
 
         # Return the list of events
         return events
-    
+
     def annotate_events(self):
-        """Creates a new column in the flyball_positions DataFrame containing the event number for each frame. If no event is found for a frame, the value in the column is set to None.
-        """
-        
+        """Creates a new column in the flyball_positions DataFrame containing the event number for each frame. If no event is found for a frame, the value in the column is set to None."""
+
         events = self.find_interaction_events()
-        
+
         self.flyball_positions["event"] = None
-        
+
         for i, event in enumerate(events, start=1):
             start, end = event[0], event[1]
-            
-            self.flyball_positions.loc[start:end, 'event'] = i
-        
+
+            self.flyball_positions.loc[start:end, "event"] = i
 
     def check_yball_variation(self, event, threshold=10):
         """
@@ -1221,7 +1242,7 @@ class Experiment:
 
 
 class Dataset:
-    def __init__(self, source, interactions = True):
+    def __init__(self, source, interactions=True):
         """
         A class to generate a dataset Experiments and Fly objects.
 
@@ -1319,11 +1340,11 @@ class Dataset:
         """
 
         try:
-            dataset_list = [
-                self._prepare_dataset(fly) for fly in self.flies
-            ]
+            dataset_list = [self._prepare_dataset(fly) for fly in self.flies]
 
-            self.data = pd.concat(dataset_list, ignore_index=True).reset_index(drop=True)
+            self.data = pd.concat(dataset_list, ignore_index=True).reset_index(
+                drop=True
+            )
 
         except Exception as e:
             print(f"An error occurred: {e}")
