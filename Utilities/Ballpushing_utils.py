@@ -398,28 +398,46 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
 # TODO: implement icecream
 
 
-def filter_experiments(folders, criteria):
+def filter_experiments(source, **criteria):
     """Generates a list of Experiment objects based on criteria.
 
     Args:
-        folders (list): A list of folders to create Experiment objects from.
+        source (list): A list of flies, experiments or folders to create Experiment objects from.
         criteria (dict): A dictionary of criteria to filter the experiments.
 
     Returns:
         list: A list of Experiment objects that match the criteria.
     """
 
-    # Create Experiment objects from the folders
-    Exps = [Experiment(f) for f in folders]
-
-    # Get a list of flies based on the criteria
     flies = []
-    for exp in Exps:
-        for fly in exp.flies:
-            if all(fly.arena_metadata.get(key) == value for key, value in criteria.items()):
+
+    # If the source is a list of flies, check directly for the criteria in flies
+    if isinstance(source[0], Fly):
+        for fly in source:
+            if all(
+                fly.arena_metadata.get(key) == value for key, value in criteria.items()
+            ):
                 flies.append(fly)
 
+    else:
+        if isinstance(source[0], Experiment):
+            Exps = source
+
+        else:
+            # Create Experiment objects from the folders
+            Exps = [Experiment(f) for f in source]
+
+        # Get a list of flies based on the criteria
+        for exp in Exps:
+            for fly in exp.flies:
+                if all(
+                    fly.arena_metadata.get(key) == value
+                    for key, value in criteria.items()
+                ):
+                    flies.append(fly)
+
     return flies
+
 
 class Fly:
     """
