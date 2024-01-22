@@ -25,6 +25,10 @@ sys.path.insert(0, "../..")
 from Utilities.Utils import *
 from Utilities.Processing import *
 
+brain_regions_path = (
+    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv"
+)
+
 
 # def generate_dataset(Folders, fly=True, ball=True, xvals=False, fps=30, Events=None):
 #     """Generates a dataset from a list of folders containing videos, tracking files and metadata files
@@ -483,7 +487,7 @@ class Fly:
             print(
                 f"No boundaries found. Generating coordinates.npy file for {self.experiment.directory}..."
             )
-            self.experiment.detect_boundaries()
+            self.detect_boundaries()
 
         self.start, self.end = np.load(self.directory / "coordinates.npy")
 
@@ -533,6 +537,46 @@ class Fly:
         # Print the metadata for this fly's arena
         for var, data in self.arena_metadata.items():
             print(f"{var}: {data}")
+
+    def detect_boundaries(self, threshold=100):
+        video_file = self.video
+
+        if not video_file.exists():
+            print(f"Error: Video file {video_file} does not exist")
+            return None, None
+
+        # open the first frame of the video
+        cap = cv2.VideoCapture(str(video_file))
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            print(f"Error: Could not read frame from video {video_file}")
+            return None, None
+        elif frame is None:
+            print(f"Error: Frame is None for video {video_file}")
+            return None, None
+
+        # Convert to grayscale
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Apply a median filter to smooth out noise and small variations
+        frame = median_filter(frame, size=3)
+
+        # Apply a Gaussian filter to smooth out noise and small variations
+        frame = gaussian_filter(frame, sigma=1)
+
+        # Compute the summed pixel values and apply a threshold
+        summed_pixel_values = frame.sum(axis=1)
+        summed_pixel_values[summed_pixel_values < threshold] = 0
+
+        # Find the index of the minimum value in the thresholded summed pixel values
+        min_row = np.argmin(summed_pixel_values)
+
+        # Save a .npy file with the start and end coordinates in the video folder
+        np.save(video_file.parent / "coordinates.npy", [min_row - 30, min_row - 320])
+
+        return frame, min_row
 
     def get_coordinates(self, ball=True, fly=True, xvals=True):
         """Extracts the coordinates from the ball and fly h5 sleap data.
@@ -1135,105 +1179,61 @@ class Experiment:
 
         return flies
 
-    def detect_boundaries(self, threshold=100, preview=False):
-        """
-        Detect the start and end coordinates of the corridor in each video.
+    def generate_grid(self, preview=False, overwrite = False):
+        # Check if the grid image already exists
+        if (self.directory / "grid.png").exists() and not overwrite:
+            print(f"Grid image already exists for {self.directory.name}")
+            return
+        else:
+            print(f"Generating grid image for {self.directory.name}")
+        
+            frames = []
+            min_rows = []
+            paths = []
 
-        This method opens the first frame of each video, applies a median filter and a Gaussian filter to smooth out noise and small variations, computes the summed pixel values, and applies a threshold. The index of the minimum value in the thresholded summed pixel values is saved as the start coordinate. The start coordinate minus 320 is saved as the end coordinate. The start and end coordinates are saved in a .npy file in the video directory.
+            for fly in self.flies:
+                frame, min_row = fly.detect_boundaries()
+                if frame is not None and min_row is not None:
+                    frames.append(frame)
+                    min_rows.append(min_row)
+                    paths.append(fly.video)
 
-        Parameters
-        ----------
-        threshold : int
-            The threshold value to apply to the summed pixel values for a binary thresholding. Defaults to 100.
+            # Set the number of rows and columns for the grid
 
-        preview : bool
-            Whether to preview the grid image or not. Defaults to False.
+            nrows = 9
+            ncols = 6
 
-        """
+            # Create a figure with subplots
+            fig, axs = plt.subplots(nrows, ncols, figsize=(20, 20))
 
-        frames = []
-        min_rows = []
-        paths = []
+            # Loop over the frames, minimum row indices, and video paths
+            for i, (frame, min_row, flypath) in enumerate(zip(frames, min_rows, paths)):
+                # Get the row and column index for this subplot
+                row = i // ncols
+                col = i % ncols
 
-        for fly in self.flies:
-            video_file = fly.video
+                # Plot the frame on this subplot
+                try:
+                    axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
+                except:
+                    print(f"Error: Could not plot frame {i} for video {flypath}")
+                    # go to the next folder
+                    continue
 
-            if not video_file.exists():
-                print(f"Error: Video file {video_file} does not exist")
-                continue
+                # Plot the horizontal lines on this subplot
+                axs[row, col].axhline(min_row - 30, color="red")
+                axs[row, col].axhline(min_row - 320, color="blue")
 
-            # open the first frame of the video
-            cap = cv2.VideoCapture(str(video_file))
-            ret, frame = cap.read()
-            cap.release()
+            # Remove the axis of each subplot and draw them closer together
+            for ax in axs.flat:
+                ax.axis("off")
+            plt.subplots_adjust(wspace=0, hspace=0)
 
-            if not ret:
-                print(f"Error: Could not read frame from video {video_file}")
-            elif frame is None:
-                print(f"Error: Frame is None for video {video_file}")
-            else:
-                # Convert to grayscale
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Save the grid image in the main folder
+            plt.savefig(self.directory / "grid.png")
 
-                # Apply a median filter to smooth out noise and small variations
-                frame = median_filter(frame, size=3)
-
-                # Apply a Gaussian filter to smooth out noise and small variations
-                frame = gaussian_filter(frame, sigma=1)
-
-                # Compute the summed pixel values and apply a threshold
-                summed_pixel_values = frame.sum(axis=1)
-                summed_pixel_values[summed_pixel_values < threshold] = 0
-
-                # Find the index of the minimum value in the thresholded summed pixel values
-                min_row = np.argmin(summed_pixel_values)
-
-                # Save a .npy file with the start and end coordinates in the video folder
-                np.save(
-                    video_file.parent / "coordinates.npy", [min_row - 30, min_row - 320]
-                )
-
-                # Store the frame, minimum row index, and video path
-                frames.append(frame)
-                min_rows.append(min_row)
-                paths.append(fly.video)
-
-        # Set the number of rows and columns for the grid
-
-        nrows = 9
-        ncols = 6
-
-        # Create a figure with subplots
-        fig, axs = plt.subplots(nrows, ncols, figsize=(20, 20))
-
-        # Loop over the frames, minimum row indices, and video paths
-        for i, (frame, min_row, flypath) in enumerate(zip(frames, min_rows, paths)):
-            # Get the row and column index for this subplot
-            row = i // ncols
-            col = i % ncols
-
-            # Plot the frame on this subplot
-            try:
-                axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
-            except:
-                print(f"Error: Could not plot frame {i} for video {flypath}")
-                # go to the next folder
-                continue
-
-            # Plot the horizontal lines on this subplot
-            axs[row, col].axhline(min_row - 30, color="red")
-            axs[row, col].axhline(min_row - 320, color="blue")
-
-        # Remove the axis of each subplot and draw them closer together
-        for ax in axs.flat:
-            ax.axis("off")
-        plt.subplots_adjust(wspace=0, hspace=0)
-
-        # Save the grid image in the main folder
-        plt.savefig(self.directory / "grid.png")
-
-        if preview == True:
-            plt.show()
+            if preview == True:
+                plt.show()
 
 
 class Dataset:
@@ -1345,6 +1345,12 @@ class Dataset:
             print(f"An error occurred: {e}")
             self.data = pd.DataFrame()
 
+        regions_map = pd.read_csv(brain_regions_path)
+
+        regions_map = regions_map.rename(columns={"Codename": "Genotype"})
+
+        self.data = pd.merge(self.data, regions_map, on="Genotype")
+
         return self.data
 
     def _prepare_dataset(self, fly):
@@ -1369,3 +1375,6 @@ class Dataset:
             dataset[var] = dataset[var].astype("category")
 
         return dataset
+
+    # def plot_events():
+    # Group the data by
