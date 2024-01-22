@@ -34,8 +34,27 @@ def get_data_path(setup="mazerecorder"):
 
     if setup == "mazerecorder":
         datapath = labserver.joinpath("Experimental_data/MultiMazeRecorder/Videos")
-        
+
     return datapath
+
+
+def get_folders(path, keywords):
+    """Generates a list of Experiment objects based on keywords.
+
+    Args:
+        path (str): The path where to look for experiments.
+        keywords (list): A list of keywords to filter the experiments.
+
+    Returns:
+        list: A list of folders.
+    """
+
+    # Get all folders that have all keywords in their name
+    Folders = [
+        f for f in path.iterdir() if all(keyword.lower() in f.name.lower() for keyword in keywords)
+    ]
+
+    return Folders
 
 
 def checksave(path, object, file):
