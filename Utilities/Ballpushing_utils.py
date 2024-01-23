@@ -576,6 +576,16 @@ class Fly:
             print(f"{var}: {data}")
 
     def detect_boundaries(self, threshold=100):
+        """Detects the start and end of the corridor in the video. This is later used to compute the relative distance of the fly from the start of the corridor.
+
+        Args:
+            threshold (int, optional): the pixel value threshold to used for the thresholding operation. Defaults to 100. Change value if boundaries are not correctly detected.
+
+        Returns:
+            frame (np.array): the first frame of the video.
+            min_row (int): the index of the minimum value in the thresholded summed pixel values.
+        """
+
         video_file = self.video
 
         if not video_file.exists():
@@ -1274,7 +1284,12 @@ class Experiment:
 
 
 class Dataset:
-    def __init__(self, source, interactions=True):
+    def __init__(
+        self,
+        source,
+        interactions=True,
+        brain_regions_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv",
+    ):
         """
         A class to generate a dataset Experiments and Fly objects.
 
@@ -1307,7 +1322,7 @@ class Dataset:
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
 
-        elif isinstance(source, Experiment):
+        elif isinstance(source, Experiment, brain_regions_path):
             # If the source is an Experiment object, generate a dataset from the experiment
             self.experiments = [source]
 
@@ -1322,6 +1337,9 @@ class Dataset:
             raise TypeError(
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
+
+        self.brain_regions_path = brain_regions_path
+        self.regions_map = pd.read_csv(self.brain_regions_path)
 
         self.data = self.generate_dataset()
 
@@ -1382,12 +1400,6 @@ class Dataset:
             print(f"An error occurred: {e}")
             self.data = pd.DataFrame()
 
-        regions_map = pd.read_csv(brain_regions_path)
-
-        regions_map = regions_map.rename(columns={"Codename": "Genotype"})
-        # TODO: This is circular, it shouldn't be defined in Init because Genotype is not yet defined there.
-        self.data = pd.merge(self.data, regions_map, on="Genotype")
-
         return self.data
 
     def _prepare_dataset(self, fly):
@@ -1410,6 +1422,13 @@ class Dataset:
         for var, data in fly.arena_metadata.items():
             dataset[var] = data
             dataset[var] = dataset[var].astype("category")
+
+        # If one of the columns is 'Genotype', use the brain regions csv file to add the associated brain region
+        if "Genotype" in dataset.columns:
+            dataset = dataset.merge(self.regions_map, on="Genotype", how="left")
+            dataset["Simplified region"] = dataset["Simplified region"].astype(
+                "category"
+            )
 
         return dataset
 
