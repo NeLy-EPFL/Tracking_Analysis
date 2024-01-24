@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import itertools
+from operator import itemgetter
+
 import holoviews as hv
 from bokeh.models import HoverTool
 
@@ -469,8 +472,7 @@ class Fly:
 
         Args:
             directory (Path): The path to the fly directory.
-            experiment (Experiment, optional): An optional Experiment object. If not provided,
-                                               an Experiment object will be created based on the parent directory of the given directory.
+            experiment (Experiment, optional): An optional Experiment object. If not provided, an Experiment object will be created based on the parent directory of the given directory.
 
         Attributes:
             directory (Path): The path to the fly directory.
@@ -529,10 +531,11 @@ class Fly:
 
         self.start, self.end = np.load(self.directory / "coordinates.npy")
 
-        # Compute distance between fly and ball
+        # Compute distance between fly and ball, and interactions
 
         if self.flytrack is not None and self.balltrack is not None:
             self.flyball_positions = self.get_coordinates(self.balltrack, self.flytrack)
+            self.interaction_events = self.find_interaction_events()
         else:
             self.flyball_positions = None
 
@@ -836,16 +839,48 @@ class Fly:
         return events
 
     def annotate_events(self):
-        """Creates a new column in the flyball_positions DataFrame containing the event number for each frame. If no event is found for a frame, the value in the column is set to None."""
-
-        events = self.find_interaction_events()
+        """
+        Creates a new column in the flyball_positions DataFrame containing the event number for each frame. If no event is found for a frame, the value in the column is set to None.
+        """
 
         self.flyball_positions["event"] = None
 
-        for i, event in enumerate(events, start=1):
+        for i, event in enumerate(self.interaction_events, start=1):
             start, end = event[0], event[1]
 
             self.flyball_positions.loc[start:end, "event"] = i
+
+    def get_events_number(self):
+        """
+        Returns the number of events found in the flyball_positions DataFrame.
+        """
+
+        # Return the number of events
+        return len(self.interaction_events)
+
+    def get_final_event(self, threshold=10):
+        """
+        Find the event at which the fly pushed the ball to its maximum relative distance from the start of the corridor. It is defined with a threshold so if the ball is very close to the maximum value recorded, it is still detected as the final event.
+
+        Args:
+            threshold (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+
+        Returns:
+            tuple: A tuple containing the final event (start frame, end frame and duration) and its index in the list of events.
+        """
+
+        # Get the maximum relative distance of the ball from the start of the corridor
+        max_yball_relative = self.flyball_positions["yball_relative"].max()
+
+        # Get the event where the maximum relative distance was recorded
+        final_event, final_event_index = next(
+            (event, i)
+            for i, event in enumerate(self.interaction_events)
+            if self.flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
+            >= max_yball_relative - threshold
+        )
+
+        return final_event, final_event_index
 
     def check_yball_variation(self, event, threshold=10):
         """
@@ -867,7 +902,76 @@ class Fly:
 
         return variation > threshold
 
-    def generate_clip(self, event, outpath, fps, width, height):
+    def get_significant_events(self, distance=10):
+        """
+        Get the events where the ball was displaced by more that a given distance.
+
+        Args:
+            distance (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+
+        Returns:
+            list: A list of events where the ball was displaced by more than the given distance.
+        """
+        # Filter the events based on the check_yball_variation method
+        significant_events = [
+            event
+            for event in self.interaction_events
+            if self.check_yball_variation(event, threshold=distance)
+        ]
+
+        return significant_events
+
+    def find_breaks(self):
+        """
+        Finds the periods where the fly is not interacting with the ball, which are defined as the periods between events.
+        
+        Returns:
+            list: A list of breaks, where each break is a tuple containing the start and end indices of the break in the 'flyball_positions' DataFrame, and the duration of the break.
+        """
+        
+        # Initialize the list of breaks
+        breaks = []
+        
+        # find the break if any between the start of the video and the first event
+        if self.interaction_events[0][0] > 0:
+            breaks.append((0, self.interaction_events[0][0], self.interaction_events[0][0]))
+        
+        #find the breaks between events
+        for i, event in enumerate(self.interaction_events[:-1]):
+            start = event[1]
+            end = self.interaction_events[i+1][0]
+            duration = end - start
+            breaks.append((start, end, duration))
+            
+        # find the break if any between the last event and the end of the video
+        if self.interaction_events[-1][1] < len(self.flyball_positions):
+            breaks.append((self.interaction_events[-1][1], len(self.flyball_positions), len(self.flyball_positions)-self.interaction_events[-1][1]))
+
+        return breaks
+    
+    def get_cumulated_breaks_duration(self):
+        """
+        Compute the total duration of the breaks between events.
+        
+        Returns:
+            int: The total duration of the breaks between events.
+        """
+        
+        breaks = self.find_breaks()
+        
+        return sum([break_[2] for break_ in breaks])
+    
+    def find_pulling_events(self):
+        """
+        Find the events where the fly pulled the ball, which are defined as the events where the ball final position during these events is closer to the start of the corridor than the initial position.
+        """
+        # TODO: modify to only get significant pulls
+        pulling_events = [event for event in self.interaction_events if self.flyball_positions.loc[event[1], "yball_relative"] < self.flyball_positions.loc[event[0], "yball_relative"]]
+        
+        return pulling_events
+        
+
+    def generate_clip(self, event, outpath=None, fps=None, width=None, height=None):
         """
         Generate a video clip for a given event.
 
@@ -883,17 +987,34 @@ class Fly:
         Returns:
             str: The path to the output video clip.
         """
+        # TODO : Make it easier to just give an event number instead of having to use the self.interaction_events list
+        # If no outpath is provided, use a default path based on the fly's name and the event number
+        if not outpath:
+            outpath = get_labserver() / "Videos"
+        
         start_frame, end_frame = event[0], event[1]
         cap = cv2.VideoCapture(str(self.video))
+        
+        # If no fps, width or height is provided, use the original video's fps, width and height
+        if not fps:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+        if not width:
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        if not height:
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
         try:
             start_time = start_frame / fps
             start_time_str = str(datetime.timedelta(seconds=int(start_time)))
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
+            
             # Get the index of the event in the list to apply it to the output file name
-            event_index = self.find_interaction_events().index(event)
+            event_index = self.interaction_events.index(event)
 
-            clip_path = outpath.joinpath(f"output_{event_index}.mp4").as_posix()
+            if outpath == get_labserver() / "Videos" :
+                clip_path = outpath.joinpath(f"{self.name}_{event_index}.mp4").as_posix()
+            else:
+                clip_path = outpath.joinpath(f"output_{event_index}.mp4").as_posix()
             out = cv2.VideoWriter(clip_path, fourcc, fps, (height, width))
             try:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -1007,7 +1128,7 @@ class Fly:
 
         if outpath is None:
             outpath = self.directory
-        events = self.find_interaction_events()
+        events = self.interaction_events
         clips = []
 
         cap = cv2.VideoCapture(str(self.video))
@@ -1341,10 +1462,13 @@ class Dataset:
 
         self.brain_regions_path = brain_regions_path
         self.regions_map = pd.read_csv(self.brain_regions_path)
-        
+
         self.metadata = []
 
         self.data = self.generate_dataset()
+
+        self.dropdata = self.data.drop_duplicates(subset="fly")
+        self.dropdata.set_index("fly", inplace=True)
 
     def __str__(self):
         # Look for recurring words in the experiment names
@@ -1473,17 +1597,81 @@ class Dataset:
             + GroupedData["SampleSize"].astype(str)
             + ")"
         )
-        
+
         # Add the metadata to the GroupedData
-        dropdata = self.data.drop_duplicates(subset="fly")
         GroupedData.set_index("fly", inplace=True)
-        dropdata.set_index("fly", inplace=True)
-        
-        GroupedData.update(dropdata[self.metadata])
+
+        GroupedData.update(self.dropdata[self.metadata])
         GroupedData.reset_index(inplace=True)
-        
+
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
         return GroupedData
+
+    # TODO: Add a function to generate the Ctrl bootstrapped CI and use that to make a background shaded area in the plots.
+
+    def get_final_events(self, end_threshold=10):
+        # Group by 'Fly' column and find the maximum 'yball_relative' for each group
+        max_positions = self.data.groupby("fly")["yball_relative"].max()
+
+        # Initialize an empty DataFrame to store the results
+        result = []
+
+        # For each Fly, find the first event where 'yball_relative' is equal to max_position
+        for fly, max_position in max_positions.items():
+            fly_data = self.data[self.data["fly"] == fly]
+            fly_data = fly_data.sort_values("event")
+            event = (
+                fly_data[fly_data["yball_relative"] >= max_position - end_threshold][
+                    "event"
+                ]
+                .drop_duplicates()
+                .iloc[0]
+            )
+            result.append({"fly": fly, "event": event})
+
+        # Convert the result to a DataFrame
+        result_df = pd.DataFrame(result)
+
+        # Merge the result_df with the original Dataset
+        self.data = pd.merge(self.data, result_df, on=["fly", "event"], how="left")
+
+        # Create the 'IsFinal' column, which is True if 'Event' is in result_df and False otherwise
+        self.data["IsFinal"] = False
+        self.data.loc[self.data["event"].isin(result_df["event"]), "IsFinal"] = True
+
+        self.data["max_position"] = self.data.groupby("fly")[
+            "yball_relative"
+        ].transform("max")
+
+        self.data["IsFinal"] = self.data["yball_relative"] >= (
+            self.data["max_position"] - end_threshold
+        )
+
+        # Now extract the event number from the 'Event' column
+
+        # Filter rows where 'IsFinal' is True
+        final_events_trimmed = self.data[self.data["IsFinal"] == True]
+
+        first_final = final_events_trimmed.groupby(["fly"])["event"].min()
+
+        # Create a new column 'FinalEvent' in the original DataFrame
+        self.data = self.data.merge(
+            first_final.rename("FinalEvent"),
+            left_on="fly",
+            right_index=True,
+            how="left",
+        )
+
+        # Create a new DataFrame with one row per fly
+        data_per_fly = self.data.drop_duplicates(subset="fly")
+
+        # Add the metadata to the data_per_fly
+        data_per_fly.set_index("fly", inplace=True)
+
+        data_per_fly.update(self.dropdata[self.metadata])
+        data_per_fly.reset_index(inplace=True)
+
+        return data_per_fly
 
     def jitter_boxplot(
         self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
