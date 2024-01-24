@@ -1323,7 +1323,7 @@ class Dataset:
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
 
-        elif isinstance(source, Experiment, brain_regions_path):
+        elif isinstance(source, Experiment):
             # If the source is an Experiment object, generate a dataset from the experiment
             self.experiments = [source]
 
@@ -1341,6 +1341,8 @@ class Dataset:
 
         self.brain_regions_path = brain_regions_path
         self.regions_map = pd.read_csv(self.brain_regions_path)
+        
+        self.metadata = []
 
         self.data = self.generate_dataset()
 
@@ -1413,7 +1415,7 @@ class Dataset:
 
         # Add a column with the fly name as categorical data
         dataset["fly"] = fly.name
-        #dataset["fly"] = dataset["fly"].astype("str")
+        # dataset["fly"] = dataset["fly"].astype("str")
         dataset["fly"] = dataset["fly"].astype("category")
 
         # Add a column with the experiment name as categorical data
@@ -1424,6 +1426,9 @@ class Dataset:
         for var, data in fly.arena_metadata.items():
             dataset[var] = data
             dataset[var] = dataset[var].astype("category")
+            # If the variable name is not in the metadata list, add it
+            if var not in self.metadata:
+                self.metadata.append(var)
 
         # If one of the columns is 'Genotype', use the brain regions csv file to add the associated brain region
         if "Genotype" in dataset.columns:
@@ -1434,13 +1439,7 @@ class Dataset:
 
         return dataset
 
-    def plot_events(self, plot_options=hv_main, show=True, save=False, outpath=None):
-        """Generate a plot of the number of events per Genotype and Fly, grouped by Simplified region.
-
-        Args:
-            plot_options (dict, optional): A dictionary containing the plot options. Defaults to MD's main holoviews styling options.
-            show (bool, optional): Whether to display the plot or not. Defaults to True.
-        """
+    def get_event_numbers(self):
         # Check that events have been annotated
         if "event" not in self.data.columns:
             raise ValueError(
@@ -1463,18 +1462,48 @@ class Dataset:
         )
 
         # Merge GroupedData and SampleSize
-        GroupedData = pd.merge(GroupedData, SampleSize, on=["Nickname", "Simplified region"])
+        GroupedData = pd.merge(
+            GroupedData, SampleSize, on=["Nickname", "Simplified region"]
+        )
 
         # Modify Nickname column
-        GroupedData["Nickname"] = GroupedData["Nickname"] + " (n = " + GroupedData["SampleSize"].astype(str) + ")"
+        GroupedData["Nickname"] = (
+            GroupedData["Nickname"]
+            + " (n = "
+            + GroupedData["SampleSize"].astype(str)
+            + ")"
+        )
         
+        # Add the metadata to the GroupedData
+        dropdata = self.data.drop_duplicates(subset="fly")
+        GroupedData.set_index("fly", inplace=True)
+        dropdata.set_index("fly", inplace=True)
+        
+        GroupedData.update(dropdata[self.metadata])
+        GroupedData.reset_index(inplace=True)
+        
+        # TODO: Add handling when there's no simplified region, to get the simpler version of the data
+        return GroupedData
+
+    def jitter_boxplot(
+        self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
+    ):
         # Get the metadata for the tooltips
-        
+        tooltips = [
+            ("Fly", "@fly"),
+            (vdim.capitalize(), f"@{vdim}"),
+        ]
+
+        # Add the metadata to the tooltips
+        for var in self.metadata:
+            tooltips.append((var.capitalize(), f"@{var}"))
+
+        hover = HoverTool(tooltips=tooltips)
 
         h_NumbEvents_bp = (
             hv.BoxWhisker(
-                data=GroupedData,
-                vdims="event",
+                data=data,
+                vdims=vdim,
                 kdims=["Nickname", "Simplified region"],
                 color="Nickname",
             )
@@ -1484,16 +1513,18 @@ class Dataset:
 
         h_NumbEvents_sc = (
             hv.Scatter(
-                data=GroupedData,
-                vdims="event",
+                data=data,
+                vdims=[vdim] + self.metadata + ["fly"],
                 kdims=["Nickname", "Simplified region"],
                 color="Nickname",
             )
             .groupby("Simplified region")
-            .opts(**plot_options["scatter"])
+            .opts(**plot_options["scatter"], tools=[hover])
         )
 
-        hvplot_NumbEvents = (h_NumbEvents_bp * h_NumbEvents_sc).opts(**plot_options["plot"])
+        hvplot_NumbEvents = (h_NumbEvents_bp * h_NumbEvents_sc).opts(
+            **plot_options["plot"]
+        )
 
         if show:
             hv.render(hvplot_NumbEvents)
@@ -1506,10 +1537,9 @@ class Dataset:
                     get_labserver()
                     / "Experimental_data"
                     / "MultiMazeRecorder"
-                    / f"EventsNumber_{date_time}.html"
+                    / f"{vdim}Number_{date_time}.html"
                 )
 
             hv.save(hvplot_NumbEvents, output_path)
 
         return hvplot_NumbEvents
-
