@@ -1,4 +1,15 @@
+from bokeh.models import HoverTool
+
 # My main template
+
+# Define your tooltips
+tooltips = [
+    ("Fly", "@fly"),
+    ("Event", "@event"),
+]
+
+# Create a HoverTool instance
+hover = HoverTool(tooltips=tooltips)
 
 hv_main = {
     "boxwhisker": {
@@ -14,7 +25,7 @@ hv_main = {
         "alpha": 0.5,
         "size": 6,
         "cmap": "Category10",
-        "tools": ["hover"],
+        "tools": [hover],
         "framewise": True,
     },
     "plot": {

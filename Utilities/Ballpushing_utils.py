@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import holoviews as hv
+from bokeh.models import HoverTool
 
 
 from scipy.ndimage import median_filter, gaussian_filter
@@ -1412,6 +1413,7 @@ class Dataset:
 
         # Add a column with the fly name as categorical data
         dataset["fly"] = fly.name
+        #dataset["fly"] = dataset["fly"].astype("str")
         dataset["fly"] = dataset["fly"].astype("category")
 
         # Add a column with the experiment name as categorical data
@@ -1432,34 +1434,82 @@ class Dataset:
 
         return dataset
 
-    def plot_events(self):
+    def plot_events(self, plot_options=hv_main, show=True, save=False, outpath=None):
+        """Generate a plot of the number of events per Genotype and Fly, grouped by Simplified region.
+
+        Args:
+            plot_options (dict, optional): A dictionary containing the plot options. Defaults to MD's main holoviews styling options.
+            show (bool, optional): Whether to display the plot or not. Defaults to True.
+        """
+        # Check that events have been annotated
+        if "event" not in self.data.columns:
+            raise ValueError(
+                "No events have been annotated. Run the annotate_events method first."
+            )
+
         # Group the data by Fly and Event
         GroupedData = (
-            self.data.groupby(["Fly", "Nickname", "Simplified region"])
-            .nunique(["Event"])
+            self.data.groupby(["fly", "Nickname", "Simplified region"])
+            .nunique(["event"])
             .reset_index()
         )
+
+        # Calculate sample size
+        SampleSize = (
+            self.data.groupby(["Nickname", "Simplified region"])
+            .nunique()["fly"]
+            .reset_index()
+            .rename(columns={"fly": "SampleSize"})
+        )
+
+        # Merge GroupedData and SampleSize
+        GroupedData = pd.merge(GroupedData, SampleSize, on=["Nickname", "Simplified region"])
+
+        # Modify Nickname column
+        GroupedData["Nickname"] = GroupedData["Nickname"] + " (n = " + GroupedData["SampleSize"].astype(str) + ")"
+        
+        # Get the metadata for the tooltips
+        
 
         h_NumbEvents_bp = (
             hv.BoxWhisker(
                 data=GroupedData,
-                vdims="Event",
+                vdims="event",
                 kdims=["Nickname", "Simplified region"],
                 color="Nickname",
             )
             .groupby("Simplified region")
-            .opts(**hv_opts["boxwhisker"])
+            .opts(**plot_options["boxwhisker"])
         )
 
         h_NumbEvents_sc = (
             hv.Scatter(
                 data=GroupedData,
-                vdims="Event",
+                vdims="event",
                 kdims=["Nickname", "Simplified region"],
                 color="Nickname",
             )
             .groupby("Simplified region")
-            .opts(**hv_opts["scatter"])
+            .opts(**plot_options["scatter"])
         )
 
-        hvplot_NumbEvents = (h_NumbEvents_bp * h_NumbEvents_sc).opts(**hv_opts["plot"])
+        hvplot_NumbEvents = (h_NumbEvents_bp * h_NumbEvents_sc).opts(**plot_options["plot"])
+
+        if show:
+            hv.render(hvplot_NumbEvents)
+        if save:
+            if outpath is None:
+                now = datetime.datetime.now()  # get current date and time
+                date_time = now.strftime("%Y%m%d_%H%M")  # format as a string
+
+                output_path = (
+                    get_labserver()
+                    / "Experimental_data"
+                    / "MultiMazeRecorder"
+                    / f"EventsNumber_{date_time}.html"
+                )
+
+            hv.save(hvplot_NumbEvents, output_path)
+
+        return hvplot_NumbEvents
+
