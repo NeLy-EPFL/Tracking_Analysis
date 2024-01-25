@@ -460,7 +460,7 @@ def filter_experiments(source, **criteria):
 
     return flies
 
-
+# TODO : Test the dead_or_empty function in conditions where I know the fly is dead or the arena is empty or not to check success
 class Fly:
     """
     A class for a single fly. This represents a folder containing a video, associated tracking files, and metadata files. It is usually contained in an Experiment object, and inherits the Experiment object's metadata.
@@ -539,6 +539,9 @@ class Fly:
         else:
             self.flyball_positions = None
 
+        # Check if the corridor is empty or the fly is in bad shape and set the dead_or_empty attribute accordingly
+        self.dead_or_empty = self.check_empty() or self.check_dead()
+
     def __str__(self):
         # Get the genotype from the metadata
         genotype = self.arena_metadata["Genotype"]
@@ -547,6 +550,86 @@ class Fly:
 
     def __repr__(self):
         return f"Fly({self.directory})"
+
+    def check_empty(self):
+        """
+        Check if the arena is empty.
+
+        This method loads the first frame of the video, converts it to grayscale, and checks if there are any non-zero pixels in the image. If there are, it means the arena is not empty.
+
+        Returns:
+            bool: True if the arena is empty, False otherwise.
+        """
+        # Load the first frame of video
+        Vid = cv2.VideoCapture(str(self.video))
+        Vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ret, frame = Vid.read()
+        Vid.release()
+
+        # Convert to grayscale
+        Vid = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Load the coordinates.npy file
+        start, end = np.load(self.video.parent / "coordinates.npy")
+
+        arena = self.video.parent.parent.name
+
+        # Crop the frames to the chamber location, which is any y value above the start position
+        crop = Vid[start + 40 :, :]
+
+        # Detect the edges of the arena and crop the image to the edges
+        edges = cv2.Canny(crop, 100, 200)
+        # Find the non zero pixels
+        nz = np.nonzero(edges)
+        # Crop the image to the edges
+        crop = crop[np.min(nz[0]) : np.max(nz[0]), np.min(nz[1]) : np.max(nz[1])]
+
+        # Binarise the images with a threshold of 60
+        crop_bin = crop < 60
+
+        # Create a kernel
+        kernel = np.ones((3, 3), np.uint8)
+
+        # Apply an opening operation
+        crop_bin = cv2.morphologyEx(crop_bin.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+
+        # If there's a peak, the arena is not empty
+        if np.any(crop_bin > 0):
+            # print(f"{arena}/{self.video.name} is not empty")
+            return False
+        else:
+            print(f"{self.name} is empty")
+            return True
+
+    def check_dead(self):
+        """Check if the fly is dead or in poor condition.
+
+        This method loads the smoothed fly tracking data and checks if the fly moved more that 30 pixels in the y or x direction. If it did, it means the fly is alive and in good condition.
+
+        Returns:
+            bool: True if the fly is dead or in poor condition, False otherwise.
+        """
+
+        # Check if any of the smoothed fly x and y coordinates are more than 30 pixels away from their initial position
+        if np.any(
+            abs(
+                self.flyball_positions["yfly_smooth"]
+                - self.flyball_positions["yfly_smooth"][0]
+            )
+            > 30
+        ) or np.any(
+            abs(
+                self.flyball_positions["xfly_smooth"]
+                - self.flyball_positions["xfly_smooth"][0]
+            )
+            > 30
+        ):
+            # print(f"{self.name} is alive")
+            return False
+        else:
+            print(f"{self.name} is dead or in poor condition")
+            return True
+            
 
     def get_arena_metadata(self):
         """
