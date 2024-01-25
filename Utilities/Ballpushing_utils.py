@@ -924,52 +924,64 @@ class Fly:
     def find_breaks(self):
         """
         Finds the periods where the fly is not interacting with the ball, which are defined as the periods between events.
-        
+
         Returns:
             list: A list of breaks, where each break is a tuple containing the start and end indices of the break in the 'flyball_positions' DataFrame, and the duration of the break.
         """
-        
+
         # Initialize the list of breaks
         breaks = []
-        
+
         # find the break if any between the start of the video and the first event
         if self.interaction_events[0][0] > 0:
-            breaks.append((0, self.interaction_events[0][0], self.interaction_events[0][0]))
-        
-        #find the breaks between events
+            breaks.append(
+                (0, self.interaction_events[0][0], self.interaction_events[0][0])
+            )
+
+        # find the breaks between events
         for i, event in enumerate(self.interaction_events[:-1]):
             start = event[1]
-            end = self.interaction_events[i+1][0]
+            end = self.interaction_events[i + 1][0]
             duration = end - start
             breaks.append((start, end, duration))
-            
+
         # find the break if any between the last event and the end of the video
         if self.interaction_events[-1][1] < len(self.flyball_positions):
-            breaks.append((self.interaction_events[-1][1], len(self.flyball_positions), len(self.flyball_positions)-self.interaction_events[-1][1]))
+            breaks.append(
+                (
+                    self.interaction_events[-1][1],
+                    len(self.flyball_positions),
+                    len(self.flyball_positions) - self.interaction_events[-1][1],
+                )
+            )
 
         return breaks
-    
+
     def get_cumulated_breaks_duration(self):
         """
         Compute the total duration of the breaks between events.
-        
+
         Returns:
             int: The total duration of the breaks between events.
         """
-        
+
         breaks = self.find_breaks()
-        
+
         return sum([break_[2] for break_ in breaks])
-    
+
     def find_pulling_events(self):
         """
         Find the events where the fly pulled the ball, which are defined as the events where the ball final position during these events is closer to the start of the corridor than the initial position.
         """
         # TODO: modify to only get significant pulls
-        pulling_events = [event for event in self.interaction_events if self.flyball_positions.loc[event[1], "yball_relative"] < self.flyball_positions.loc[event[0], "yball_relative"]]
-        
+        pulling_events = [
+            event
+            for event in self.interaction_events
+            if self.flyball_positions.loc[event[1], "yball_relative"]
+            < self.flyball_positions.loc[event[0], "yball_relative"]
+        ]
+
         return pulling_events
-        
 
     def generate_clip(self, event, outpath=None, fps=None, width=None, height=None):
         """
@@ -978,7 +990,7 @@ class Fly:
         This method creates a video clip from the original video for the duration of the event. It also adds text to each frame indicating the event number and start time. If the 'yball_smooth' value varies more than a certain threshold during the event, a red dot is added to the frame.
 
         Args:
-            event (list): A list containing the start and end indices of the event in the 'flyball_positions' DataFrame.
+            event (list or int): : A list containing the start and end indices of the event in the 'flyball_positions' DataFrame. Alternatively, an integer can be provided to indicate the index of the event in the 'interaction_events' list.
             outpath (Path): The directory where the output video clip should be saved.
             fps (int): The frames per second of the original video.
             width (int): The width of the output video frames.
@@ -987,14 +999,18 @@ class Fly:
         Returns:
             str: The path to the output video clip.
         """
-        # TODO : Make it easier to just give an event number instead of having to use the self.interaction_events list
+
         # If no outpath is provided, use a default path based on the fly's name and the event number
         if not outpath:
             outpath = get_labserver() / "Videos"
-        
+
+        # Check if the event is an integer or a list
+        if isinstance(event, int):
+            event = self.interaction_events[event - 1]
+
         start_frame, end_frame = event[0], event[1]
         cap = cv2.VideoCapture(str(self.video))
-        
+
         # If no fps, width or height is provided, use the original video's fps, width and height
         if not fps:
             fps = cap.get(cv2.CAP_PROP_FPS)
@@ -1002,17 +1018,19 @@ class Fly:
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         if not height:
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
+
         try:
             start_time = start_frame / fps
             start_time_str = str(datetime.timedelta(seconds=int(start_time)))
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            
+
             # Get the index of the event in the list to apply it to the output file name
             event_index = self.interaction_events.index(event)
 
-            if outpath == get_labserver() / "Videos" :
-                clip_path = outpath.joinpath(f"{self.name}_{event_index}.mp4").as_posix()
+            if outpath == get_labserver() / "Videos":
+                clip_path = outpath.joinpath(
+                    f"{self.name}_{event_index}.mp4"
+                ).as_posix()
             else:
                 clip_path = outpath.joinpath(f"output_{event_index}.mp4").as_posix()
             out = cv2.VideoWriter(clip_path, fourcc, fps, (height, width))
@@ -1725,6 +1743,7 @@ class Dataset:
                     get_labserver()
                     / "Experimental_data"
                     / "MultiMazeRecorder"
+                    / "Plots"
                     / f"{vdim}Number_{date_time}.html"
                 )
 
