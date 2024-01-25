@@ -90,7 +90,12 @@ for main_folder in tqdm(
         col = i % ncols
 
         # Plot the frame on this subplot
-        axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
+        try:
+            axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
+        except:
+            print(f"Error: Could not plot frame {i} for video {Videopath}")
+            # go to the next folder
+            continue
 
         # Plot the horizontal lines on this subplot
         axs[row, col].axhline(min_row - 30, color="red")

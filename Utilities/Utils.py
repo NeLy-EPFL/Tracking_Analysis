@@ -4,6 +4,63 @@ import pandas as pd
 from traceback import format_tb
 import requests
 import os
+import platform
+from pathlib import Path
+
+
+def get_labserver():
+    """
+    Returns the appropriate data path based on the platform.
+
+    Returns:
+    Path: The data path.
+    """
+
+    if platform.system() == "Darwin":
+        return Path("/Volumes/Ramdya-Lab/DURRIEU_Matthias/")
+    elif platform.system() == "Linux":
+        return Path("/mnt/labserver/DURRIEU_Matthias/")
+    else:
+        raise ValueError("Unsupported platform")
+
+
+def get_data_path(setup="mazerecorder"):
+    """
+    Returns the data path for the specified setup.
+
+    """
+
+    labserver = get_labserver()
+
+    if setup == "mazerecorder":
+        datapath = labserver.joinpath("Experimental_data/MultiMazeRecorder/Videos")
+
+    return datapath
+
+
+def get_folders(path, keywords=None):
+    """Generates a list of Experiment objects based on keywords.
+
+    Args:
+        path (str): The path where to look for experiments.
+        keywords (list, optional): A list of keywords to filter the experiments. If None, all folders are returned.
+
+    Returns:
+        list: A list of folders.
+    """
+
+    if keywords:
+        # Get all folders that have all keywords in their name
+        Folders = [
+            f
+            for f in path.iterdir()
+            if all(keyword.lower() in f.name.lower() for keyword in keywords)
+        ]
+    else:
+        # Get all folders
+        Folders = list(path.iterdir())
+
+    return Folders
 
 
 def checksave(path, object, file):

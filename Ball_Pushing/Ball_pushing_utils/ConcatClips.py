@@ -18,7 +18,6 @@ import cv2
 from datetime import timedelta
 import platform
 import json
-
 import os
 
 os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"  # Replace with your actual path
