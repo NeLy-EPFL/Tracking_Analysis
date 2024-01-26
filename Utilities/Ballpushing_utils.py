@@ -506,6 +506,7 @@ class Fly:
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
 
+        # TODO: Improve this by getting brain_regions values and Genotype values as lower case to avoid missing values due to capitalization errors.
         # Get the brain regions table
         brain_regions = pd.read_csv(brain_regions_path, index_col=0)
 
@@ -1044,7 +1045,7 @@ class Fly:
 
         # Initialize the list of breaks
         breaks = []
-        
+
         # If there are no interaction events, the entire video is a break
         if not self.interaction_events:
             return [(0, len(self.flyball_positions), len(self.flyball_positions))]
@@ -1093,9 +1094,8 @@ class Fly:
 
         # Get significant events
         significant_events = self.get_significant_events()
-        
-        if significant_events:
 
+        if significant_events:
             pushing_events = [
                 event
                 for event in significant_events
@@ -1109,7 +1109,7 @@ class Fly:
                 if self.flyball_positions.loc[event[1], "yball_relative"]
                 < self.flyball_positions.loc[event[0], "yball_relative"]
             ]
-        
+
         else:
             pushing_events, pulling_events = [], []
 
@@ -1764,53 +1764,47 @@ class Dataset:
 
         """
 
+        # TODO: Implement events duration
+        # TODO: Implement some metric about whether the fly brought the ball close enought to the end of the corridor
+
+        # Store the results of function calls in variables
+
+        final_event = fly.get_final_event()
+        significant_events = fly.get_significant_events()
+        events_direction = fly.find_events_direction()
+
+        # Create a dictionary of metric calculation functions
+        metric_funcs = {
+            "NumberEvents": lambda: [fly.get_events_number()],
+            "FinalEvent": lambda: [final_event[1]]
+            if final_event != (None, None)
+            else [None],
+            "FinalTime": lambda: [final_event[0][2]]
+            if final_event != (None, None)
+            else [None],
+            "SignificantEvents": lambda: [len(significant_events)]
+            if significant_events
+            else [0],
+            "SignificantFirst": lambda: [
+                fly.interaction_events.index(significant_events[0])
+            ]
+            if significant_events
+            else [None],
+            "SignificantFirstTime": lambda: [significant_events[0][0]]
+            if significant_events
+            else [None],
+            "CumulatedBreaks": lambda: [fly.get_cumulated_breaks_duration()],
+            "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
+            "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
+        }
+
         # Initialize an empty dictionary
         data = {}
 
         # Add the metrics for each fly
-        if "NumberEvents" in metrics:
-            data["NumberEvents"] = [fly.get_events_number()]
-
-        if "FinalEvent" in metrics and fly.get_final_event() != (None, None):
-            data["FinalEvent"] = [fly.get_final_event()[1]]
-        else:
-            data["FinalEvent"] = [None]
-            
-        if "FinalTime" in metrics and fly.get_final_event() != (None, None):
-            data["FinalTime"] = [fly.get_final_event()[0][2]]
-        else:
-            data["FinalTime"] = [None]
-            
-        # Check if "SignificantEvents" is in metrics and if the fly has any significant events
-        if "SignificantEvents" in metrics and fly.get_significant_events():
-            data["SignificantEvents"] = [len(fly.get_significant_events())]
-        else:
-            data["SignificantEvents"] = [0]
-            
-        if "SignificantFirst" in metrics and fly.get_significant_events():
-            data["SignificantFirst"] = [
-                fly.interaction_events.index(fly.get_significant_events()[0])
-            ]
-        else:
-            data["SignificantFirst"] = [None]
-            
-        if "SignificantFirstTime" in metrics and fly.get_significant_events():
-            data["SignificantFirstTime"] = [fly.get_significant_events()[0][0]]
-        else:
-            data["SignificantFirstTime"] = [None]
-            
-        if "CumulatedBreaks" in metrics:
-            data["CumulatedBreaks"] = [fly.get_cumulated_breaks_duration()]
-        
-        if "Pushes" in metrics and fly.find_events_direction():
-            data["Pushes"] = [len(fly.find_events_direction()[0])]
-        else:
-            data["Pushes"] = [0]
-            
-        if "Pulls" in metrics and fly.find_events_direction():
-            data["Pulls"] = [len(fly.find_events_direction()[1])]
-        else:
-            data["Pulls"] = [0]
+        for metric in metrics:
+            if metric in metric_funcs:
+                data[metric] = metric_funcs[metric]()
 
         # Convert the dictionary to a DataFrame
         dataset = pd.DataFrame(data)
@@ -1835,20 +1829,25 @@ class Dataset:
 
         # Add a column with the fly name as categorical data
         dataset["fly"] = fly.name
-        # dataset["fly"] = dataset["fly"].astype("str")
         dataset["fly"] = dataset["fly"].astype("category")
 
         # Add a column with the experiment name as categorical data
         dataset["experiment"] = fly.experiment.directory.name
         dataset["experiment"] = dataset["experiment"].astype("category")
 
-        dataset["Nickname"] = fly.nickname
-        dataset["Brain region"] = fly.brain_region
+        # Handle missing values for 'Nickname' and 'Brain region'
+        dataset["Nickname"] = fly.nickname if fly.nickname is not None else "Unknown"
+        dataset["Brain region"] = (
+            fly.brain_region if fly.brain_region is not None else "Unknown"
+        )
 
         # Add the metadata for the fly's arena as columns
         for var, data in fly.arena_metadata.items():
+            # Handle missing values in arena metadata
+            data = data if data is not None else "Unknown"
             dataset[var] = data
             dataset[var] = dataset[var].astype("category")
+
             # If the variable name is not in the metadata list, add it
             if var not in self.metadata:
                 self.metadata.append(var)
@@ -1924,6 +1923,33 @@ class Dataset:
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
 
     # TODO: Add a function to generate the Ctrl bootstrapped CI and use that to make a background shaded area in the plots.
+
+    def compute_bs_ci(
+        self, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
+    ):
+        """
+        Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument.
+
+        Args:
+            metric (str): The metric to compute the confidence interval for.
+            genotypes (list): A list of control genotypes.
+
+        Returns:
+            np.ndarray: The lower and upper confidence interval bounds.
+        """
+
+        # Filter the dataset for flies with control genotypes
+        control_data = self.data[self.data["Genotype"].isin(control_genotypes)]
+
+        # Check if there are any control flies in the dataset
+        if control_data.empty:
+            print("No flies with control genotypes found in the dataset.")
+            return None
+
+        # Compute the bootstrap confidence interval for the given metric
+        ci = draw_bs_ci(control_data[metric].values)
+
+        return ci
 
     def jitter_boxplot(
         self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
