@@ -983,7 +983,9 @@ class Fly:
             final_event, final_event_index = next(
                 (event, i)
                 for i, event in enumerate(self.interaction_events)
-                if self.flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
+                if self.flyball_positions.loc[
+                    event[0] : event[1], "yball_relative"
+                ].max()
                 >= max_yball_relative - threshold
             )
         except StopIteration:
@@ -1042,6 +1044,10 @@ class Fly:
 
         # Initialize the list of breaks
         breaks = []
+        
+        # If there are no interaction events, the entire video is a break
+        if not self.interaction_events:
+            return [(0, len(self.flyball_positions), len(self.flyball_positions))]
 
         # find the break if any between the start of the video and the first event
         if self.interaction_events[0][0] > 0:
@@ -1087,20 +1093,25 @@ class Fly:
 
         # Get significant events
         significant_events = self.get_significant_events()
+        
+        if significant_events:
 
-        pushing_events = [
-            event
-            for event in significant_events
-            if self.flyball_positions.loc[event[1], "yball_relative"]
-            > self.flyball_positions.loc[event[0], "yball_relative"]
-        ]
+            pushing_events = [
+                event
+                for event in significant_events
+                if self.flyball_positions.loc[event[1], "yball_relative"]
+                > self.flyball_positions.loc[event[0], "yball_relative"]
+            ]
 
-        pulling_events = [
-            event
-            for event in significant_events
-            if self.flyball_positions.loc[event[1], "yball_relative"]
-            < self.flyball_positions.loc[event[0], "yball_relative"]
-        ]
+            pulling_events = [
+                event
+                for event in significant_events
+                if self.flyball_positions.loc[event[1], "yball_relative"]
+                < self.flyball_positions.loc[event[0], "yball_relative"]
+            ]
+        
+        else:
+            pushing_events, pulling_events = [], []
 
         return pushing_events, pulling_events
 
@@ -1667,11 +1678,13 @@ class Dataset:
                 ]
             elif metrics == "summary":
                 dataset_list = [
-                    df if not df.empty else print(f"Empty DataFrame for fly {fly.directory}") 
-                    for fly in self.flies 
+                    df
+                    if not df.empty
+                    else print(f"Empty DataFrame for fly {fly.directory}")
+                    for fly in self.flies
                     if (df := self._prepare_dataset_summary_metrics(fly)) is not None
                 ]
-                
+
                 # Debugging step: print out each DataFrame in dataset_list
                 for df in dataset_list:
                     print(df)
@@ -1682,10 +1695,10 @@ class Dataset:
                 )
             else:
                 self.data = pd.DataFrame()
-            
+
             self.data = self.compute_sample_size(self.data)
-            
-            print(self.data.head()) 
+
+            print(self.data.head())
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -1757,30 +1770,53 @@ class Dataset:
         # Add the metrics for each fly
         if "NumberEvents" in metrics:
             data["NumberEvents"] = [fly.get_events_number()]
-        if "FinalEvent" in metrics:
+
+        if "FinalEvent" in metrics and fly.get_final_event() != (None, None):
             data["FinalEvent"] = [fly.get_final_event()[1]]
-        if "FinalTime" in metrics:
+        else:
+            data["FinalEvent"] = [None]
+            
+        if "FinalTime" in metrics and fly.get_final_event() != (None, None):
             data["FinalTime"] = [fly.get_final_event()[0][2]]
-        if "SignificantEvents" in metrics:
+        else:
+            data["FinalTime"] = [None]
+            
+        # Check if "SignificantEvents" is in metrics and if the fly has any significant events
+        if "SignificantEvents" in metrics and fly.get_significant_events():
             data["SignificantEvents"] = [len(fly.get_significant_events())]
-        if "SignificantFirst" in metrics:
+        else:
+            data["SignificantEvents"] = [0]
+            
+        if "SignificantFirst" in metrics and fly.get_significant_events():
             data["SignificantFirst"] = [
                 fly.interaction_events.index(fly.get_significant_events()[0])
             ]
-        if "SignificantFirstTime" in metrics:
+        else:
+            data["SignificantFirst"] = [None]
+            
+        if "SignificantFirstTime" in metrics and fly.get_significant_events():
             data["SignificantFirstTime"] = [fly.get_significant_events()[0][0]]
+        else:
+            data["SignificantFirstTime"] = [None]
+            
         if "CumulatedBreaks" in metrics:
             data["CumulatedBreaks"] = [fly.get_cumulated_breaks_duration()]
-        if "Pushes" in metrics:
+        
+        if "Pushes" in metrics and fly.find_events_direction():
             data["Pushes"] = [len(fly.find_events_direction()[0])]
-        if "Pulls" in metrics:
+        else:
+            data["Pushes"] = [0]
+            
+        if "Pulls" in metrics and fly.find_events_direction():
             data["Pulls"] = [len(fly.find_events_direction()[1])]
+        else:
+            data["Pulls"] = [0]
 
         # Convert the dictionary to a DataFrame
         dataset = pd.DataFrame(data)
-        
+
         dataset = self._add_metadata(dataset, fly)
-        
+
         return dataset
 
     def _add_metadata(self, data, fly):
@@ -1886,73 +1922,8 @@ class Dataset:
         GroupedData.reset_index(inplace=True)
 
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
-        return GroupedData
 
     # TODO: Add a function to generate the Ctrl bootstrapped CI and use that to make a background shaded area in the plots.
-
-    def get_final_events(self, end_threshold=10):
-        # Group by 'Fly' column and find the maximum 'yball_relative' for each group
-        max_positions = self.data.groupby("fly")["yball_relative"].max()
-
-        # Initialize an empty DataFrame to store the results
-        result = []
-
-        # For each Fly, find the first event where 'yball_relative' is equal to max_position
-        for fly, max_position in max_positions.items():
-            fly_data = self.data[self.data["fly"] == fly]
-            fly_data = fly_data.sort_values("event")
-            event = (
-                fly_data[fly_data["yball_relative"] >= max_position - end_threshold][
-                    "event"
-                ]
-                .drop_duplicates()
-                .iloc[0]
-            )
-            result.append({"fly": fly, "event": event})
-
-        # Convert the result to a DataFrame
-        result_df = pd.DataFrame(result)
-
-        # Merge the result_df with the original Dataset
-        self.data = pd.merge(self.data, result_df, on=["fly", "event"], how="left")
-
-        # Create the 'IsFinal' column, which is True if 'Event' is in result_df and False otherwise
-        self.data["IsFinal"] = False
-        self.data.loc[self.data["event"].isin(result_df["event"]), "IsFinal"] = True
-
-        self.data["max_position"] = self.data.groupby("fly")[
-            "yball_relative"
-        ].transform("max")
-
-        self.data["IsFinal"] = self.data["yball_relative"] >= (
-            self.data["max_position"] - end_threshold
-        )
-
-        # Now extract the event number from the 'Event' column
-
-        # Filter rows where 'IsFinal' is True
-        final_events_trimmed = self.data[self.data["IsFinal"] == True]
-
-        first_final = final_events_trimmed.groupby(["fly"])["event"].min()
-
-        # Create a new column 'FinalEvent' in the original DataFrame
-        self.data = self.data.merge(
-            first_final.rename("FinalEvent"),
-            left_on="fly",
-            right_index=True,
-            how="left",
-        )
-
-        # Create a new DataFrame with one row per fly
-        data_per_fly = self.data.drop_duplicates(subset="fly")
-
-        # Add the metadata to the data_per_fly
-        data_per_fly.set_index("fly", inplace=True)
-
-        data_per_fly.update(self.dropdata[self.metadata])
-        data_per_fly.reset_index(inplace=True)
-
-        return data_per_fly
 
     def jitter_boxplot(
         self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
