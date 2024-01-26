@@ -460,13 +460,18 @@ def filter_experiments(source, **criteria):
 
     return flies
 
+
 # TODO : Test the dead_or_empty function in conditions where I know the fly is dead or the arena is empty or not to check success
 class Fly:
     """
     A class for a single fly. This represents a folder containing a video, associated tracking files, and metadata files. It is usually contained in an Experiment object, and inherits the Experiment object's metadata.
     """
 
-    def __init__(self, directory, experiment=None):
+    def __init__(
+        self,
+        directory,
+        experiment=None,
+    ):
         """
         Initialize a Fly object.
 
@@ -500,6 +505,25 @@ class Fly:
         # For each value in the arena metadata, add it as an attribute of the fly
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
+
+        # Get the brain regions table
+        brain_regions = pd.read_csv(brain_regions_path, index_col=0)
+
+        # If the fly's genotype is defined in the arena metadata, find the associated nickname and brain region from the brain_regions_path file
+        if "Genotype" in self.arena_metadata:
+            try:
+                self.nickname = brain_regions.loc[
+                    self.arena_metadata["Genotype"], "Nickname"
+                ]
+                self.brain_region = brain_regions.loc[
+                    self.arena_metadata["Genotype"], "Simplified region"
+                ]
+            except KeyError:
+                print(
+                    f"Genotype {self.arena_metadata['Genotype']} not found in brain regions table. Defaulting to PR"
+                )
+                self.nickname = "PR"
+                self.brain_region = "Control"
 
         try:
             self.video = list(self.directory.glob(f"{self.corridor}.mp4"))[0]
@@ -629,7 +653,6 @@ class Fly:
         else:
             print(f"{self.name} is dead or in poor condition")
             return True
-            
 
     def get_arena_metadata(self):
         """
@@ -956,12 +979,17 @@ class Fly:
         max_yball_relative = self.flyball_positions["yball_relative"].max()
 
         # Get the event where the maximum relative distance was recorded
-        final_event, final_event_index = next(
-            (event, i)
-            for i, event in enumerate(self.interaction_events)
-            if self.flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
-            >= max_yball_relative - threshold
-        )
+        try:
+            final_event, final_event_index = next(
+                (event, i)
+                for i, event in enumerate(self.interaction_events)
+                if self.flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
+                >= max_yball_relative - threshold
+            )
+        except StopIteration:
+            print(f"No final event found for {self.name}")
+            # Return None or NaN when no final event is found
+            final_event, final_event_index = None, None
 
         return final_event, final_event_index
 
@@ -1052,19 +1080,29 @@ class Fly:
 
         return sum([break_[2] for break_ in breaks])
 
-    def find_pulling_events(self):
+    def find_events_direction(self):
         """
-        Find the events where the fly pulled the ball, which are defined as the events where the ball final position during these events is closer to the start of the corridor than the initial position.
+        Find the events where the fly pushed or pulled the ball, which are defined as the events where the ball final position during these events is further away or closer to the start of the corridor than the initial position, respectively.
         """
-        # TODO: modify to only get significant pulls
+
+        # Get significant events
+        significant_events = self.get_significant_events()
+
+        pushing_events = [
+            event
+            for event in significant_events
+            if self.flyball_positions.loc[event[1], "yball_relative"]
+            > self.flyball_positions.loc[event[0], "yball_relative"]
+        ]
+
         pulling_events = [
             event
-            for event in self.interaction_events
+            for event in significant_events
             if self.flyball_positions.loc[event[1], "yball_relative"]
             < self.flyball_positions.loc[event[0], "yball_relative"]
         ]
 
-        return pulling_events
+        return pushing_events, pulling_events
 
     def generate_clip(self, event, outpath=None, fps=None, width=None, height=None):
         """
@@ -1510,11 +1548,12 @@ class Dataset:
     def __init__(
         self,
         source,
-        interactions=True,
         brain_regions_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv",
     ):
         """
-        A class to generate a dataset Experiments and Fly objects.
+        A class to generate a Dataset from Experiments and Fly objects.
+
+        It is in essence a list of Fly objects that can be used to generate a pandas DataFrame containing chosen metrics for each fly.
 
         Parameters
         ----------
@@ -1522,7 +1561,7 @@ class Dataset:
 
         """
         self.source = source
-        self.interactions = interactions
+
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
@@ -1561,15 +1600,13 @@ class Dataset:
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
 
+        self.flies = [fly for fly in self.flies if fly.flyball_positions is not None]
+        self.flies = [fly for fly in self.flies if not fly.dead_or_empty]
+
         self.brain_regions_path = brain_regions_path
         self.regions_map = pd.read_csv(self.brain_regions_path)
 
         self.metadata = []
-
-        self.data = self.generate_dataset()
-
-        self.dropdata = self.data.drop_duplicates(subset="fly")
-        self.dropdata.set_index("fly", inplace=True)
 
     def __str__(self):
         # Look for recurring words in the experiment names
@@ -1610,33 +1647,155 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    def generate_dataset(self):
+    def generate_dataset(self, metrics="coordinates"):
         """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
 
         Args:
             experiments (list): A list of Experiment objects.
+            metrics (str): The kind of dataset to generate. Currently, the following metrics are available:
+            - 'coordinates': The fly and ball coordinates for each frame.
+            - 'summary': Summary metrics for each fly. These are single values for each fly (e.g. number of events, duration of the breaks between events, etc.). A list of available summary metrics can be found in _prepare_dataset_summary_metrics documentation.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing selected metrics for each fly and associated metadata.
         """
 
         try:
-            dataset_list = [self._prepare_dataset(fly) for fly in self.flies]
+            if metrics == "coordinates":
+                dataset_list = [
+                    self._prepare_dataset_coordinates(fly) for fly in self.flies
+                ]
+            elif metrics == "summary":
+                dataset_list = [
+                    df if not df.empty else print(f"Empty DataFrame for fly {fly.directory}") 
+                    for fly in self.flies 
+                    if (df := self._prepare_dataset_summary_metrics(fly)) is not None
+                ]
+                
+                # Debugging step: print out each DataFrame in dataset_list
+                for df in dataset_list:
+                    print(df)
 
-            self.data = pd.concat(dataset_list, ignore_index=True).reset_index(
-                drop=True
-            )
+            if dataset_list:  # Only concatenate if the list is not empty
+                self.data = pd.concat(dataset_list, ignore_index=True).reset_index(
+                    drop=True
+                )
+            else:
+                self.data = pd.DataFrame()
+            
+            self.data = self.compute_sample_size(self.data)
+            
+            print(self.data.head()) 
 
         except Exception as e:
             print(f"An error occurred: {e}")
+            traceback.print_exc()
             self.data = pd.DataFrame()
 
         return self.data
 
-    def _prepare_dataset(self, fly):
-        """Helper function to prepare individual fly dataset."""
+    def _prepare_dataset_coordinates(self, fly, interactions=True):
+        """
+        Helper function to prepare individual fly dataset with fly and ball coordinates. It also adds the fly name, experiment name and arena metadata as categorical data.
+
+        Args:
+            fly (Fly): A Fly object.
+            interactions (bool): Whether to annotate the dataset with interaction events. Defaults to True.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
+        """
 
         dataset = fly.flyball_positions
 
-        if self.interactions:
+        if interactions:
             fly.annotate_events()
+
+        dataset = self._add_metadata(dataset, fly)
+
+        return dataset
+
+    def _prepare_dataset_summary_metrics(
+        self,
+        fly,
+        metrics=[
+            "NumberEvents",
+            "FinalEvent",
+            "FinalTime",
+            "SignificantEvents",
+            "SignificantFirst",
+            "SignificantFirstTime",
+            "CumulatedBreaks",
+            "Pushes",
+            "Pulls",
+        ],
+    ):
+        """
+        Helper function to prepare individual fly dataset with summary metrics. Currently, the metrics available are:
+        - NumberEvents: The number of events found in the flyball_positions DataFrame.
+        - FinalEvent: The event at which the fly pushed the ball to its maximum relative distance from the start of the corridor.
+        - FinalTime: The time at which the final event occurred.
+        - SignificantEvents: The number of events where the ball was displaced by more that a given distance.
+        - SignificantFirst: The index of the first significant event.
+        - SignificantFirstTime: The time at which the first significant event occurred.
+        - CumulatedBreaks: The total duration of the breaks between events.
+        - Pushes: The number of events where the fly pushed the ball.
+        - Pulls: The number of events where the fly pulled the ball.
+
+        Args:
+            fly (Fly): A Fly object.
+            metrics (list): A list of metrics to include in the dataset. The metrics require valid ball and fly tracking data.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the fly's summary metrics and associated metadata.
+
+        """
+
+        # Initialize an empty dictionary
+        data = {}
+
+        # Add the metrics for each fly
+        if "NumberEvents" in metrics:
+            data["NumberEvents"] = [fly.get_events_number()]
+        if "FinalEvent" in metrics:
+            data["FinalEvent"] = [fly.get_final_event()[1]]
+        if "FinalTime" in metrics:
+            data["FinalTime"] = [fly.get_final_event()[0][2]]
+        if "SignificantEvents" in metrics:
+            data["SignificantEvents"] = [len(fly.get_significant_events())]
+        if "SignificantFirst" in metrics:
+            data["SignificantFirst"] = [
+                fly.interaction_events.index(fly.get_significant_events()[0])
+            ]
+        if "SignificantFirstTime" in metrics:
+            data["SignificantFirstTime"] = [fly.get_significant_events()[0][0]]
+        if "CumulatedBreaks" in metrics:
+            data["CumulatedBreaks"] = [fly.get_cumulated_breaks_duration()]
+        if "Pushes" in metrics:
+            data["Pushes"] = [len(fly.find_events_direction()[0])]
+        if "Pulls" in metrics:
+            data["Pulls"] = [len(fly.find_events_direction()[1])]
+
+        # Convert the dictionary to a DataFrame
+        dataset = pd.DataFrame(data)
+        
+        dataset = self._add_metadata(dataset, fly)
+        
+        return dataset
+
+    def _add_metadata(self, data, fly):
+        """
+        Adds the metadata to a dataset generated by a _prepare_dataset_... method.
+
+        Args:
+            data (pandas.DataFrame): A pandas DataFrame generated by a _prepare_dataset_... method.
+            fly (Fly): A Fly object.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
+        """
+
+        dataset = data
 
         # Add a column with the fly name as categorical data
         dataset["fly"] = fly.name
@@ -1647,6 +1806,9 @@ class Dataset:
         dataset["experiment"] = fly.experiment.directory.name
         dataset["experiment"] = dataset["experiment"].astype("category")
 
+        dataset["Nickname"] = fly.nickname
+        dataset["Brain region"] = fly.brain_region
+
         # Add the metadata for the fly's arena as columns
         for var, data in fly.arena_metadata.items():
             dataset[var] = data
@@ -1655,14 +1817,32 @@ class Dataset:
             if var not in self.metadata:
                 self.metadata.append(var)
 
-        # If one of the columns is 'Genotype', use the brain regions csv file to add the associated brain region
-        if "Genotype" in dataset.columns:
-            dataset = dataset.merge(self.regions_map, on="Genotype", how="left")
-            dataset["Simplified region"] = dataset["Simplified region"].astype(
-                "category"
-            )
-
         return dataset
+
+    def compute_sample_size(self, data, group_by_columns=["Nickname", "Brain region"]):
+        """
+        Function used to compute the sample size of a dataset generated by the generate_dataset method. it compute the size of the dataset grouped by columns of interest.
+
+        Args:
+            data (pandas.DataFrame): A pandas DataFrame generated by the generate_dataset method.
+
+            group_by_columns (list): A list of columns to group the data by.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the sample size for each group.
+        """
+        # Group the data by the columns of interest and compute the sample size
+        sample_size = (
+            data.groupby(group_by_columns)
+            .nunique()["fly"]
+            .reset_index()
+            .rename(columns={"fly": "SampleSize"})
+        )
+
+        # Merge the sample size with the original data
+        data = pd.merge(data, sample_size, on=group_by_columns)
+
+        return data
 
     def get_event_numbers(self):
         # Check that events have been annotated
@@ -1793,10 +1973,10 @@ class Dataset:
             hv.BoxWhisker(
                 data=data,
                 vdims=vdim,
-                kdims=["Nickname", "Simplified region"],
+                kdims=["Nickname", "Brain region"],
                 color="Nickname",
             )
-            .groupby("Simplified region")
+            .groupby("Brain region")
             .opts(**plot_options["boxwhisker"])
         )
 
@@ -1804,10 +1984,10 @@ class Dataset:
             hv.Scatter(
                 data=data,
                 vdims=[vdim] + self.metadata + ["fly"],
-                kdims=["Nickname", "Simplified region"],
+                kdims=["Nickname", "Brain region"],
                 color="Nickname",
             )
-            .groupby("Simplified region")
+            .groupby("Brain region")
             .opts(**plot_options["scatter"], tools=[hover])
         )
 
