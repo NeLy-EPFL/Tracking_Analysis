@@ -1277,7 +1277,7 @@ class Fly:
         Args:
             outpath (Path, optional): The directory where the output video should be saved. If None, the video is saved in the fly's directory. Defaults to None.
         """
-        
+
         if self.flyball_positions is None:
             print(f"No tracking data available for {self.name}. Skipping...")
             return
@@ -1983,15 +1983,19 @@ class Dataset:
         # Compute the bootstrap confidence interval for the metric
         bs_ci = self.compute_bs_ci(vdim, ["TNTxG78", "TNTxG75", "TNTxG79"])
 
+        # Get the limits for the y axis
+
+        y_min = data[vdim].min()
+        y_max = data[vdim].max()
+
         hv_boxplot = (
             hv.BoxWhisker(
                 data=data,
                 vdims=vdim,
                 kdims=["label", "Brain region"],
-                color="label",
             )
             .groupby("Brain region")
-            .opts(**plot_options["boxwhisker"])
+            .opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
         )
 
         hv_scatterplot = (
@@ -1999,17 +2003,16 @@ class Dataset:
                 data=data,
                 vdims=[vdim] + self.metadata + ["fly"],
                 kdims=["label", "Brain region"],
-                color="label",
             )
             .groupby("Brain region")
-            .opts(**plot_options["scatter"], tools=[hover])
+            .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
         )
 
         # Create an Area plot for the confidence interval
-        hv_bs_ci = hv.VSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+        hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
 
         hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-            **plot_options["plot"]
+            ylabel=f"{vdim}", **plot_options["plot"]
         )
 
         if show:
