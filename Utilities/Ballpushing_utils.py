@@ -30,8 +30,10 @@ import pygame
 
 sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
+sys.path.append("/home/durrieu/Tracking_Analysis/Utilities")
 from Utilities.Utils import *
 from Utilities.Processing import *
+
 from HoloviewsTemplates import hv_main
 
 brain_regions_path = (
@@ -515,15 +517,22 @@ class Fly:
         if "Genotype" in self.arena_metadata:
             try:
                 genotype = self.arena_metadata["Genotype"]
-                self.nickname = brain_regions.loc[
-                    self.arena_metadata["Genotype"], "Nickname"
-                ]
-                self.brain_region = brain_regions.loc[
-                    self.arena_metadata["Genotype"], "Simplified region"
+
+                # If the genotype is None, skip the fly
+                if genotype is None:
+                    raise KeyError(f"Genotype is None: {self.name} is empty.")
+
+                # Convert to lowercase for comparison
+                lowercase_index = brain_regions.index.str.lower()
+                matched_index = lowercase_index.get_loc(genotype.lower())
+
+                self.nickname = brain_regions.iloc[matched_index]["Nickname"]
+                self.brain_region = brain_regions.iloc[matched_index][
+                    "Simplified region"
                 ]
             except KeyError:
                 print(
-                    f"Genotype {self.arena_metadata['Genotype']} not found in brain regions table. Defaulting to PR"
+                    f"Genotype {genotype} not found in brain regions table for {self.name}. Defaulting to PR"
                 )
                 self.nickname = "PR"
                 self.brain_region = "Control"
@@ -1452,6 +1461,12 @@ class Experiment:
         return f"Experiment({self.directory})"
 
     def load_metadata(self):
+        """
+        Loads the metadata for the experiment. The metadata is stored in a JSON file in the experiment directory. The file is loaded as a dictionary and each variable is stored as a key in the dictionary. Each variable key contains a dictionary with the arena number as the key and the value for that variable in that arena as the value.
+
+        Returns:
+            dict: A dictionary containing the metadata for the experiment.
+        """
         with open(self.directory / "Metadata.json", "r") as f:
             metadata = json.load(f)
             variables = metadata["Variable"]
@@ -1473,6 +1488,12 @@ class Experiment:
             return metadata_dict
 
     def load_fps(self):
+        """
+        Loads the frame rate of the videos in the experiment directory.
+
+        Returns:
+            int: The frame rate of the videos.
+        """
         # Load the fps value from the fps.npy file in the experiment directory
         fps_file = self.directory / "fps.npy"
         if fps_file.exists():
@@ -1487,6 +1508,12 @@ class Experiment:
         return fps
 
     def load_flies(self):
+        """
+        Loads all flies in the experiment directory. Find subdirectories containing at least one .mp4 file, then find all .mp4 files that are named the same as their parent directory. Create a Fly object for each found folder.
+
+        Returns:
+            list: A list of Fly objects.
+        """
         # Find all directories containing at least one .mp4 file
         mp4_directories = [
             dir for dir in self.directory.glob("**/*") if any(dir.glob("*.mp4"))
@@ -1500,9 +1527,36 @@ class Experiment:
         ]
 
         # Create a Fly object for each .mp4 file
-        flies = [Fly(mp4_file.parent, experiment=self) for mp4_file in mp4_files]
+
+        flies = []
+        for mp4_file in mp4_files:
+            try:
+                fly = Fly(mp4_file.parent, experiment=self)
+                flies.append(fly)
+            except TypeError as e:
+                print(f"Error while loading fly from {mp4_file.parent}: {e}")
 
         return flies
+
+    def find_flies(self, on, value):
+        """
+        Makes a list of Fly objects matching a certain criterion.
+        
+        Parameters
+        ----------
+        on : str
+            The name of the attribute to filter on.
+        
+        value : str
+            The value of the attribute to filter on.
+
+        Returns
+        ----------
+        list
+            A list of Fly objects matching the criterion.
+        """
+        
+        return [fly for fly in self.flies if getattr(fly, on, None) == value]
 
     def generate_grid(self, preview=False, overwrite=False):
         # Check if the grid image already exists
@@ -1968,6 +2022,21 @@ class Dataset:
     def jitter_boxplot(
         self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
     ):
+        """
+        Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
+        The plot includes a bootstrap confidence interval for the control genotypes that is displayed as a shaded area behind the boxplot. 
+
+        Args:
+            data (pandas DataFrame): The dataset to plot.
+            vdim (str): The metric to plot. It should be a column in the dataset.
+            plot_options (dict, optional): A dictionary containing the plot options. Defaults to hv_main which is MD's base template for holoviews plots found in Holoviews_Templates.py.
+            show (bool, optional): Whether to display the plot (Currently only tested on Jupyter notebooks). Defaults to True.
+            save (bool, optional): Whether to save the plot as an html file. Defaults to False.
+            outpath (str, optional): The path where to save the plot. Defaults to None. If None is provided, the plot is saved in a generic location with a timestamp and information on the metric plotted.
+
+        Returns:
+            holoviews plot: A jitter boxplot.
+        """
         # Get the metadata for the tooltips
         tooltips = [
             ("Fly", "@fly"),
@@ -1981,7 +2050,7 @@ class Dataset:
         hover = HoverTool(tooltips=tooltips)
 
         # Compute the bootstrap confidence interval for the metric
-        bs_ci = self.compute_bs_ci(vdim, ["TNTxG78", "TNTxG75", "TNTxG79"])
+        bs_ci = self.compute_bs_ci(vdim)
 
         # Get the limits for the y axis
 
@@ -2033,3 +2102,6 @@ class Dataset:
             hv.save(hv_jitter_boxplot, output_path)
 
         return hv_jitter_boxplot
+
+
+# TODO: Change every upper cased things to lower case to avoid spelling mistakes.
