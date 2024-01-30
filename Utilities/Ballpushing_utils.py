@@ -1541,12 +1541,12 @@ class Experiment:
     def find_flies(self, on, value):
         """
         Makes a list of Fly objects matching a certain criterion.
-        
+
         Parameters
         ----------
         on : str
             The name of the attribute to filter on.
-        
+
         value : str
             The value of the attribute to filter on.
 
@@ -1555,7 +1555,7 @@ class Experiment:
         list
             A list of Fly objects matching the criterion.
         """
-        
+
         return [fly for fly in self.flies if getattr(fly, on, None) == value]
 
     def generate_grid(self, preview=False, overwrite=False):
@@ -1847,7 +1847,7 @@ class Dataset:
             "FinalEvent": lambda: [final_event[1]]
             if final_event != (None, None)
             else [None],
-            "FinalTime": lambda: [final_event[0][2]]
+            "FinalTime": lambda: [final_event[0][2] / fly.experiment.fps]
             if final_event != (None, None)
             else [None],
             "SignificantEvents": lambda: [len(significant_events)]
@@ -1858,10 +1858,14 @@ class Dataset:
             ]
             if significant_events
             else [None],
-            "SignificantFirstTime": lambda: [significant_events[0][0]]
+            "SignificantFirstTime": lambda: [
+                significant_events[0][0] / fly.experiment.fps
+            ]
             if significant_events
             else [None],
-            "CumulatedBreaks": lambda: [fly.get_cumulated_breaks_duration()],
+            "CumulatedBreaks": lambda: [
+                fly.get_cumulated_breaks_duration() / fly.experiment.fps
+            ],
             "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
             "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
         }
@@ -1893,32 +1897,39 @@ class Dataset:
             pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
         """
 
-        dataset = data
+        try:
+            dataset = data
 
-        # Add a column with the fly name as categorical data
-        dataset["fly"] = fly.name
-        dataset["fly"] = dataset["fly"].astype("category")
+            # Add a column with the fly name as categorical data
+            dataset["fly"] = fly.name
+            dataset["fly"] = dataset["fly"].astype("category")
 
-        # Add a column with the experiment name as categorical data
-        dataset["experiment"] = fly.experiment.directory.name
-        dataset["experiment"] = dataset["experiment"].astype("category")
+            # Add a column with the experiment name as categorical data
+            dataset["experiment"] = fly.experiment.directory.name
+            dataset["experiment"] = dataset["experiment"].astype("category")
 
-        # Handle missing values for 'Nickname' and 'Brain region'
-        dataset["Nickname"] = fly.nickname if fly.nickname is not None else "Unknown"
-        dataset["Brain region"] = (
-            fly.brain_region if fly.brain_region is not None else "Unknown"
-        )
+            # Handle missing values for 'Nickname' and 'Brain region'
+            dataset["Nickname"] = (
+                fly.nickname if fly.nickname is not None else "Unknown"
+            )
+            dataset["Brain region"] = (
+                fly.brain_region if fly.brain_region is not None else "Unknown"
+            )
 
-        # Add the metadata for the fly's arena as columns
-        for var, data in fly.arena_metadata.items():
-            # Handle missing values in arena metadata
-            data = data if data is not None else "Unknown"
-            dataset[var] = data
-            dataset[var] = dataset[var].astype("category")
+            # Add the metadata for the fly's arena as columns
+            for var, data in fly.arena_metadata.items():
+                # Handle missing values in arena metadata
+                data = data if data is not None else "Unknown"
+                dataset[var] = data
+                dataset[var] = dataset[var].astype("category")
 
-            # If the variable name is not in the metadata list, add it
-            if var not in self.metadata:
-                self.metadata.append(var)
+                # If the variable name is not in the metadata list, add it
+                if var not in self.metadata:
+                    self.metadata.append(var)
+
+        except Exception as e:
+            print(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
+            print(f"Current dataset:\n{dataset}")
 
         return dataset
 
@@ -1990,8 +2001,6 @@ class Dataset:
 
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
 
-    # TODO: Add a function to generate the Ctrl bootstrapped CI and use that to make a background shaded area in the plots.
-
     def compute_bs_ci(
         self, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
     ):
@@ -2014,6 +2023,9 @@ class Dataset:
             print("No flies with control genotypes found in the dataset.")
             return None
 
+        # Drop rows with NaN values in the metric column
+        control_data = control_data.dropna(subset=[metric])
+
         # Compute the bootstrap confidence interval for the given metric
         ci = draw_bs_ci(control_data[metric].values)
 
@@ -2024,7 +2036,7 @@ class Dataset:
     ):
         """
         Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
-        The plot includes a bootstrap confidence interval for the control genotypes that is displayed as a shaded area behind the boxplot. 
+        The plot includes a bootstrap confidence interval for the control genotypes that is displayed as a shaded area behind the boxplot.
 
         Args:
             data (pandas DataFrame): The dataset to plot.
@@ -2037,6 +2049,10 @@ class Dataset:
         Returns:
             holoviews plot: A jitter boxplot.
         """
+
+        # Clean the data by removing NaN values for this metric
+        data = data.dropna(subset=[vdim])
+        
         # Get the metadata for the tooltips
         tooltips = [
             ("Fly", "@fly"),
@@ -2077,12 +2093,18 @@ class Dataset:
             .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
         )
 
-        # Create an Area plot for the confidence interval
-        hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+        if bs_ci is not None:
+            # Create an Area plot for the confidence interval
+            hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+            hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
 
-        hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-            ylabel=f"{vdim}", **plot_options["plot"]
-        )
+        else:
+            print("No control data to generate the confidence interval.")
+            hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
 
         if show:
             hv.render(hv_jitter_boxplot)
@@ -2096,7 +2118,7 @@ class Dataset:
                     / "Experimental_data"
                     / "MultiMazeRecorder"
                     / "Plots"
-                    / f"{vdim}Number_{date_time}.html"
+                    / f"{vdim}_{date_time}.html"
                 )
 
             hv.save(hv_jitter_boxplot, output_path)
@@ -2104,4 +2126,6 @@ class Dataset:
         return hv_jitter_boxplot
 
 
-# TODO: Change every upper cased things to lower case to avoid spelling mistakes.
+# TODO: Find out why SignificantFirst errors when commuting the bootstrapped confidence interval. Same with SignificantFirstTime
+# TODO: Find out why FinalEvent errors with "AbbreviatedException: ValueError: List parameter 'PipelineMeta.vdims' length must be between 1 and 1 (inclusive), not 0." Same with FinalTime
+# TODO: Check the Dataset generation output, fix why some dataset are None types.
