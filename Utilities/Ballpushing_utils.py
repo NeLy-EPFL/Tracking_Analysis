@@ -2023,6 +2023,9 @@ class Dataset:
             print("No flies with control genotypes found in the dataset.")
             return None
 
+        # Drop rows with NaN values in the metric column
+        control_data = control_data.dropna(subset=[metric])
+
         # Compute the bootstrap confidence interval for the given metric
         ci = draw_bs_ci(control_data[metric].values)
 
@@ -2046,6 +2049,9 @@ class Dataset:
         Returns:
             holoviews plot: A jitter boxplot.
         """
+
+        # Clean the data by removing NaN values for this metric
+        data = data.dropna(subset=[vdim])
         
         # Get the metadata for the tooltips
         tooltips = [
@@ -2112,7 +2118,7 @@ class Dataset:
                     / "Experimental_data"
                     / "MultiMazeRecorder"
                     / "Plots"
-                    / f"{vdim}Number_{date_time}.html"
+                    / f"{vdim}_{date_time}.html"
                 )
 
             hv.save(hv_jitter_boxplot, output_path)
