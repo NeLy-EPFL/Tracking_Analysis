@@ -37,7 +37,7 @@ from Utilities.Processing import *
 from HoloviewsTemplates import hv_main
 
 brain_regions_path = (
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv"
+    get_labserver() / "Experimental_data/Region_map_240122.csv"
 )
 
 
