@@ -4,33 +4,44 @@ import sys
 
 sys.path.insert(0, "../..")
 
-from Utilities.Utils import *
-from Utilities.Ballpushing_utils import *
+sys.path.insert(0, "../../Utilities")
 
-# Get the data path
-datapath = get_data_path()
+from Utils import *
+from Ballpushing_utils import *
 
-print(f"Data path: {datapath}")
+# # Get the data path
+# datapath = get_data_path()
 
-# Generate a list of experiments to consider
+# print(f"Data path: {datapath}")
+
+# # Generate a list of experiments to consider
 
 
-Folders = []
-for folder in datapath.iterdir():
-    minfolder = str(folder).lower()
-    if "tnt_fine" in minfolder and "tracked" in minfolder:
-        Folders.append(folder)
+# Folders = []
+# for folder in datapath.iterdir():
+#     minfolder = str(folder).lower()
+#     if "tnt_fine" in minfolder and "tracked" in minfolder:
+#         Folders.append(folder)
 
-print(Folders)
+# print(Folders)
 
-# For each folder, generate an Experiment object
-Experiments = []
-for folder in Folders:
-    Experiments.append(Experiment(folder))
+# # For each folder, generate an Experiment object
+# Experiments = []
+# for folder in Folders:
+#     Experiments.append(Experiment(folder))
+
+# Load the experiments from a file
+
+loadpath = (
+    get_labserver()
+    / "Experimental_data/MultiMazeRecorder/Datasets/240129_TNT_Fine_Experiments.pkl"
+)
+
+Experiments = load_object(loadpath.as_posix())
 
 # For each fly in each experiment, generate the interaction video and save it in a folder (which might need to be created) depending on its genotype
 
-savepath = get_labserver() / "Videos" / "240116_TNT_Fine"
+savepath = get_labserver() / "Videos" / "240129_TNT_Fine"
 
 # Create the folder if it doesn't exist
 if not savepath.exists():
