@@ -9,7 +9,13 @@ from operator import itemgetter
 import holoviews as hv
 from bokeh.models import HoverTool
 from bokeh.plotting import show
+from bokeh.models import TapTool
+from bokeh.models import CustomJS
+from bokeh.io import show, curdoc
+from bokeh.plotting import figure
+import webbrowser
 
+from holoviews import streams
 
 from scipy.ndimage import median_filter, gaussian_filter
 from pathlib import Path
@@ -20,6 +26,8 @@ import datetime
 import subprocess
 from collections import Counter
 import pickle
+import os
+import platform
 
 import cv2
 from moviepy.editor import VideoClip
@@ -36,9 +44,7 @@ from Utilities.Processing import *
 
 from HoloviewsTemplates import hv_main
 
-brain_regions_path = (
-    get_labserver() / "Experimental_data/Region_map_240122.csv"
-)
+brain_regions_path = get_labserver() / "Experimental_data/Region_map_240122.csv"
 
 
 def save_object(obj, filename):
@@ -509,7 +515,6 @@ class Fly:
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
 
-        # TODO: Improve this by getting brain_regions values and Genotype values as lower case to avoid missing values due to capitalization errors.
         # Get the brain regions table
         brain_regions = pd.read_csv(brain_regions_path, index_col=0)
 
@@ -1904,6 +1909,10 @@ class Dataset:
             dataset["fly"] = fly.name
             dataset["fly"] = dataset["fly"].astype("category")
 
+            # Add a column with the path to the fly's folder
+            dataset["flypath"] = fly.directory.as_posix()
+            dataset["flypath"] = dataset["flypath"].astype("category")
+
             # Add a column with the experiment name as categorical data
             dataset["experiment"] = fly.experiment.directory.name
             dataset["experiment"] = dataset["experiment"].astype("category")
@@ -2052,7 +2061,7 @@ class Dataset:
 
         # Clean the data by removing NaN values for this metric
         data = data.dropna(subset=[vdim])
-        
+
         # Get the metadata for the tooltips
         tooltips = [
             ("Fly", "@fly"),
@@ -2065,6 +2074,18 @@ class Dataset:
 
         hover = HoverTool(tooltips=tooltips)
 
+        # Get the 'flypath' data
+        flypath_data = data["flypath"]
+        
+        # Define a new TapTool
+        tap = TapTool(callback=CustomJS(args=dict(source=data), code="""
+            console.log('tap event occurred at x-position: ' + cb_data.source.selected.indices);
+            var indices = cb_data.source.selected.indices;
+            for (var i = 0; i < indices.length; i++) {
+                console.log('flypath: ' + source.data['flypath'][indices[i]]);
+            }
+        """))
+        
         # Compute the bootstrap confidence interval for the metric
         bs_ci = self.compute_bs_ci(vdim)
 
@@ -2090,7 +2111,7 @@ class Dataset:
                 kdims=["label", "Brain region"],
             )
             .groupby("Brain region")
-            .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
+            .opts(**plot_options["scatter"], tools=[hover, tap], ylim=(y_min, y_max))
         )
 
         if bs_ci is not None:
