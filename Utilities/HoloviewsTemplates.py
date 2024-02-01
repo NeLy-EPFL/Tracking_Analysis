@@ -12,7 +12,7 @@ hv_main = {
     },
     "scatter": {
         "jitter": 0.3,
-        "color": "Nickname",
+        "color": "label",
         "alpha": 0.5,
         "size": 6,
         "cmap": "Category10",
@@ -23,7 +23,6 @@ hv_main = {
         "height": 500,
         "show_legend": False,
         "xlabel": "",
-        "ylabel": "Number of Events",
         "invert_axes": True,
         "show_grid": True,
         "fontscale": 1.5,

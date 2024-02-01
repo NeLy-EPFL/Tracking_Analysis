@@ -9,7 +9,13 @@ from operator import itemgetter
 import holoviews as hv
 from bokeh.models import HoverTool
 from bokeh.plotting import show
+from bokeh.models import TapTool
+from bokeh.models import CustomJS
+from bokeh.io import show, curdoc
+from bokeh.plotting import figure
+import webbrowser
 
+from holoviews import streams
 
 from scipy.ndimage import median_filter, gaussian_filter
 from pathlib import Path
@@ -20,6 +26,8 @@ import datetime
 import subprocess
 from collections import Counter
 import pickle
+import os
+import platform
 
 import cv2
 from moviepy.editor import VideoClip
@@ -30,13 +38,13 @@ import pygame
 
 sys.path.insert(0, "..")
 sys.path.insert(0, "../..")
+sys.path.append("/home/durrieu/Tracking_Analysis/Utilities")
 from Utilities.Utils import *
 from Utilities.Processing import *
+
 from HoloviewsTemplates import hv_main
 
-brain_regions_path = (
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Region_map_240122.csv"
-)
+brain_regions_path = get_labserver() / "Experimental_data/Region_map_240122.csv"
 
 
 def save_object(obj, filename):
@@ -507,7 +515,6 @@ class Fly:
         for var, data in self.arena_metadata.items():
             setattr(self, var, data)
 
-        # TODO: Improve this by getting brain_regions values and Genotype values as lower case to avoid missing values due to capitalization errors.
         # Get the brain regions table
         brain_regions = pd.read_csv(brain_regions_path, index_col=0)
 
@@ -515,15 +522,22 @@ class Fly:
         if "Genotype" in self.arena_metadata:
             try:
                 genotype = self.arena_metadata["Genotype"]
-                self.nickname = brain_regions.loc[
-                    self.arena_metadata["Genotype"], "Nickname"
-                ]
-                self.brain_region = brain_regions.loc[
-                    self.arena_metadata["Genotype"], "Simplified region"
+
+                # If the genotype is None, skip the fly
+                if genotype is None:
+                    raise KeyError(f"Genotype is None: {self.name} is empty.")
+
+                # Convert to lowercase for comparison
+                lowercase_index = brain_regions.index.str.lower()
+                matched_index = lowercase_index.get_loc(genotype.lower())
+
+                self.nickname = brain_regions.iloc[matched_index]["Nickname"]
+                self.brain_region = brain_regions.iloc[matched_index][
+                    "Simplified region"
                 ]
             except KeyError:
                 print(
-                    f"Genotype {self.arena_metadata['Genotype']} not found in brain regions table. Defaulting to PR"
+                    f"Genotype {genotype} not found in brain regions table for {self.name}. Defaulting to PR"
                 )
                 self.nickname = "PR"
                 self.brain_region = "Control"
@@ -1277,7 +1291,7 @@ class Fly:
         Args:
             outpath (Path, optional): The directory where the output video should be saved. If None, the video is saved in the fly's directory. Defaults to None.
         """
-        
+
         if self.flyball_positions is None:
             print(f"No tracking data available for {self.name}. Skipping...")
             return
@@ -1452,6 +1466,12 @@ class Experiment:
         return f"Experiment({self.directory})"
 
     def load_metadata(self):
+        """
+        Loads the metadata for the experiment. The metadata is stored in a JSON file in the experiment directory. The file is loaded as a dictionary and each variable is stored as a key in the dictionary. Each variable key contains a dictionary with the arena number as the key and the value for that variable in that arena as the value.
+
+        Returns:
+            dict: A dictionary containing the metadata for the experiment.
+        """
         with open(self.directory / "Metadata.json", "r") as f:
             metadata = json.load(f)
             variables = metadata["Variable"]
@@ -1473,6 +1493,12 @@ class Experiment:
             return metadata_dict
 
     def load_fps(self):
+        """
+        Loads the frame rate of the videos in the experiment directory.
+
+        Returns:
+            int: The frame rate of the videos.
+        """
         # Load the fps value from the fps.npy file in the experiment directory
         fps_file = self.directory / "fps.npy"
         if fps_file.exists():
@@ -1487,6 +1513,12 @@ class Experiment:
         return fps
 
     def load_flies(self):
+        """
+        Loads all flies in the experiment directory. Find subdirectories containing at least one .mp4 file, then find all .mp4 files that are named the same as their parent directory. Create a Fly object for each found folder.
+
+        Returns:
+            list: A list of Fly objects.
+        """
         # Find all directories containing at least one .mp4 file
         mp4_directories = [
             dir for dir in self.directory.glob("**/*") if any(dir.glob("*.mp4"))
@@ -1500,9 +1532,36 @@ class Experiment:
         ]
 
         # Create a Fly object for each .mp4 file
-        flies = [Fly(mp4_file.parent, experiment=self) for mp4_file in mp4_files]
+
+        flies = []
+        for mp4_file in mp4_files:
+            try:
+                fly = Fly(mp4_file.parent, experiment=self)
+                flies.append(fly)
+            except TypeError as e:
+                print(f"Error while loading fly from {mp4_file.parent}: {e}")
 
         return flies
+
+    def find_flies(self, on, value):
+        """
+        Makes a list of Fly objects matching a certain criterion.
+
+        Parameters
+        ----------
+        on : str
+            The name of the attribute to filter on.
+
+        value : str
+            The value of the attribute to filter on.
+
+        Returns
+        ----------
+        list
+            A list of Fly objects matching the criterion.
+        """
+
+        return [fly for fly in self.flies if getattr(fly, on, None) == value]
 
     def generate_grid(self, preview=False, overwrite=False):
         # Check if the grid image already exists
@@ -1793,7 +1852,7 @@ class Dataset:
             "FinalEvent": lambda: [final_event[1]]
             if final_event != (None, None)
             else [None],
-            "FinalTime": lambda: [final_event[0][2]]
+            "FinalTime": lambda: [final_event[0][2] / fly.experiment.fps]
             if final_event != (None, None)
             else [None],
             "SignificantEvents": lambda: [len(significant_events)]
@@ -1804,10 +1863,14 @@ class Dataset:
             ]
             if significant_events
             else [None],
-            "SignificantFirstTime": lambda: [significant_events[0][0]]
+            "SignificantFirstTime": lambda: [
+                significant_events[0][0] / fly.experiment.fps
+            ]
             if significant_events
             else [None],
-            "CumulatedBreaks": lambda: [fly.get_cumulated_breaks_duration()],
+            "CumulatedBreaks": lambda: [
+                fly.get_cumulated_breaks_duration() / fly.experiment.fps
+            ],
             "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
             "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
         }
@@ -1839,32 +1902,43 @@ class Dataset:
             pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
         """
 
-        dataset = data
+        try:
+            dataset = data
 
-        # Add a column with the fly name as categorical data
-        dataset["fly"] = fly.name
-        dataset["fly"] = dataset["fly"].astype("category")
+            # Add a column with the fly name as categorical data
+            dataset["fly"] = fly.name
+            dataset["fly"] = dataset["fly"].astype("category")
 
-        # Add a column with the experiment name as categorical data
-        dataset["experiment"] = fly.experiment.directory.name
-        dataset["experiment"] = dataset["experiment"].astype("category")
+            # Add a column with the path to the fly's folder
+            dataset["flypath"] = fly.directory.as_posix()
+            dataset["flypath"] = dataset["flypath"].astype("category")
 
-        # Handle missing values for 'Nickname' and 'Brain region'
-        dataset["Nickname"] = fly.nickname if fly.nickname is not None else "Unknown"
-        dataset["Brain region"] = (
-            fly.brain_region if fly.brain_region is not None else "Unknown"
-        )
+            # Add a column with the experiment name as categorical data
+            dataset["experiment"] = fly.experiment.directory.name
+            dataset["experiment"] = dataset["experiment"].astype("category")
 
-        # Add the metadata for the fly's arena as columns
-        for var, data in fly.arena_metadata.items():
-            # Handle missing values in arena metadata
-            data = data if data is not None else "Unknown"
-            dataset[var] = data
-            dataset[var] = dataset[var].astype("category")
+            # Handle missing values for 'Nickname' and 'Brain region'
+            dataset["Nickname"] = (
+                fly.nickname if fly.nickname is not None else "Unknown"
+            )
+            dataset["Brain region"] = (
+                fly.brain_region if fly.brain_region is not None else "Unknown"
+            )
 
-            # If the variable name is not in the metadata list, add it
-            if var not in self.metadata:
-                self.metadata.append(var)
+            # Add the metadata for the fly's arena as columns
+            for var, data in fly.arena_metadata.items():
+                # Handle missing values in arena metadata
+                data = data if data is not None else "Unknown"
+                dataset[var] = data
+                dataset[var] = dataset[var].astype("category")
+
+                # If the variable name is not in the metadata list, add it
+                if var not in self.metadata:
+                    self.metadata.append(var)
+
+        except Exception as e:
+            print(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
+            print(f"Current dataset:\n{dataset}")
 
         return dataset
 
@@ -1936,8 +2010,6 @@ class Dataset:
 
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
 
-    # TODO: Add a function to generate the Ctrl bootstrapped CI and use that to make a background shaded area in the plots.
-
     def compute_bs_ci(
         self, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
     ):
@@ -1960,6 +2032,9 @@ class Dataset:
             print("No flies with control genotypes found in the dataset.")
             return None
 
+        # Drop rows with NaN values in the metric column
+        control_data = control_data.dropna(subset=[metric])
+
         # Compute the bootstrap confidence interval for the given metric
         ci = draw_bs_ci(control_data[metric].values)
 
@@ -1968,6 +2043,25 @@ class Dataset:
     def jitter_boxplot(
         self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
     ):
+        """
+        Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
+        The plot includes a bootstrap confidence interval for the control genotypes that is displayed as a shaded area behind the boxplot.
+
+        Args:
+            data (pandas DataFrame): The dataset to plot.
+            vdim (str): The metric to plot. It should be a column in the dataset.
+            plot_options (dict, optional): A dictionary containing the plot options. Defaults to hv_main which is MD's base template for holoviews plots found in Holoviews_Templates.py.
+            show (bool, optional): Whether to display the plot (Currently only tested on Jupyter notebooks). Defaults to True.
+            save (bool, optional): Whether to save the plot as an html file. Defaults to False.
+            outpath (str, optional): The path where to save the plot. Defaults to None. If None is provided, the plot is saved in a generic location with a timestamp and information on the metric plotted.
+
+        Returns:
+            holoviews plot: A jitter boxplot.
+        """
+
+        # Clean the data by removing NaN values for this metric
+        data = data.dropna(subset=[vdim])
+
         # Get the metadata for the tooltips
         tooltips = [
             ("Fly", "@fly"),
@@ -1980,18 +2074,34 @@ class Dataset:
 
         hover = HoverTool(tooltips=tooltips)
 
+        # Get the 'flypath' data
+        flypath_data = data["flypath"]
+        
+        # Define a new TapTool
+        tap = TapTool(callback=CustomJS(args=dict(source=data), code="""
+            console.log('tap event occurred at x-position: ' + cb_data.source.selected.indices);
+            var indices = cb_data.source.selected.indices;
+            for (var i = 0; i < indices.length; i++) {
+                console.log('flypath: ' + source.data['flypath'][indices[i]]);
+            }
+        """))
+        
         # Compute the bootstrap confidence interval for the metric
-        bs_ci = self.compute_bs_ci(vdim, ["TNTxG78", "TNTxG75", "TNTxG79"])
+        bs_ci = self.compute_bs_ci(vdim)
+
+        # Get the limits for the y axis
+
+        y_min = data[vdim].min()
+        y_max = data[vdim].max()
 
         hv_boxplot = (
             hv.BoxWhisker(
                 data=data,
                 vdims=vdim,
                 kdims=["label", "Brain region"],
-                color="label",
             )
             .groupby("Brain region")
-            .opts(**plot_options["boxwhisker"])
+            .opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
         )
 
         hv_scatterplot = (
@@ -1999,18 +2109,23 @@ class Dataset:
                 data=data,
                 vdims=[vdim] + self.metadata + ["fly"],
                 kdims=["label", "Brain region"],
-                color="label",
             )
             .groupby("Brain region")
-            .opts(**plot_options["scatter"], tools=[hover])
+            .opts(**plot_options["scatter"], tools=[hover, tap], ylim=(y_min, y_max))
         )
 
-        # Create an Area plot for the confidence interval
-        hv_bs_ci = hv.VSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+        if bs_ci is not None:
+            # Create an Area plot for the confidence interval
+            hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+            hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
 
-        hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-            **plot_options["plot"]
-        )
+        else:
+            print("No control data to generate the confidence interval.")
+            hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
 
         if show:
             hv.render(hv_jitter_boxplot)
@@ -2024,9 +2139,14 @@ class Dataset:
                     / "Experimental_data"
                     / "MultiMazeRecorder"
                     / "Plots"
-                    / f"{vdim}Number_{date_time}.html"
+                    / f"{vdim}_{date_time}.html"
                 )
 
             hv.save(hv_jitter_boxplot, output_path)
 
         return hv_jitter_boxplot
+
+
+# TODO: Find out why SignificantFirst errors when commuting the bootstrapped confidence interval. Same with SignificantFirstTime
+# TODO: Find out why FinalEvent errors with "AbbreviatedException: ValueError: List parameter 'PipelineMeta.vdims' length must be between 1 and 1 (inclusive), not 0." Same with FinalTime
+# TODO: Check the Dataset generation output, fix why some dataset are None types.
