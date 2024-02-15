@@ -30,7 +30,7 @@ def find_experiments(directory):
             if len(list(x.glob("*.mp4"))) > 0 and len(list(x.glob("*.pkl"))) > 0:
                 experiments.append(x)
             experiments.extend(find_experiments(x))
-
+            
     return experiments
 
 
@@ -65,12 +65,21 @@ class Fly:
             # Extract the metadata
             genotype = parts[0]
             sex = "female" if "f" in parts[1] else "male"
-            age = int(parts[2].replace("d", ""))
+            # Check if the format is "nd" with n being an int
+            if "d" in parts[2]:
+                age = int(parts[2].replace("d", ""))
+            else:
+                age = "NA"
         elif len(parts) == 2:
             # Get the grand grand grand parent directory name for genotype
             genotype = self.directory.parent.parent.parent.name
             sex = "female" if "f" in parts[0] else "male"
             age = int(parts[1].replace("d", ""))
+        elif len(parts) == 4:
+            # Combine the first and second parts for genotype
+            genotype = parts[0] + "_" + parts[1]
+            sex = "female" if "f" in parts[2] else "male"
+            age = int(parts[3].replace("d", ""))
 
         # Return the metadata as a dictionary
         return {"genotype": genotype, "sex": sex, "age": age}
@@ -88,6 +97,15 @@ class Fly:
         data.columns = data.columns.droplevel(0)
 
         data.reset_index(inplace=True)
+
+        # Check for duplicated pos_x and pos_y columns and drop the second one
+        data = data.loc[:, ~data.columns.duplicated()]
+        
+        #TODO: Check if it's always the right column that is selected
+
+        # Add a name column
+
+        data["fly"] = self.directory.parent.parent.name
 
         # Add a time column in seconds
 
