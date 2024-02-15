@@ -13,10 +13,14 @@ def find_experiments(directory):
     Args:
         directory (pathlib path): The directory to search for experiments.
     """
-    
-    experiments = [x for x in directory.iterdir() if x.is_dir()]
-    experiments = [x for x in experiments if len(list(x.glob("*.mp4"))) > 0]
-    experiments = [x for x in experiments if len(list(x.glob("resultsDLC"))) > 0]
+
+    experiments = []
+
+    for x in directory.iterdir():
+        if x.is_dir():
+            if len(list(x.glob("*.mp4"))) > 0 and len(list(x.glob("resultsDLC"))) > 0:
+                experiments.append(x)
+            experiments.extend(find_experiments(x))
 
     return experiments
 
@@ -34,4 +38,5 @@ class Fly:
             directory (pathlib path): The directory of the fly's data.
         """
         
+        self.directory = directory
         
