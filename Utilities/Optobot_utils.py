@@ -52,6 +52,8 @@ class Fly:
         self.metadata = self.extract_metadata()
 
         self.data = self.load_data()
+        
+        self.duration = self.data['frame'].max()
 
     def extract_metadata(self):
         # Get the grand grand parent directory name
@@ -100,6 +102,7 @@ class Fly:
 
         # Check for duplicated pos_x and pos_y columns and drop the second one
         data = data.loc[:, ~data.columns.duplicated()]
+        # TODO: compute savgol filter with VLR params
         
         #TODO: Check if it's always the right column that is selected
 
@@ -119,3 +122,6 @@ class Fly:
         data["age"] = self.metadata["age"]
 
         return data
+    
+    #def compute_velocity(self, start, end):
+      # TODO: fill this
