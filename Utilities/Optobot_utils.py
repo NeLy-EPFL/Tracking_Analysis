@@ -55,7 +55,7 @@ class Fly:
         self.metadata = self.extract_metadata()
 
         self.data = self.load_data()
-        
+
         self.duration = self.data['frame'].max()
 
     def extract_metadata(self):
@@ -107,8 +107,8 @@ class Fly:
         # Check for duplicated pos_x and pos_y columns and drop the second one
         data = data.loc[:, ~data.columns.duplicated()]
         # TODO: compute savgol filter with VLR params
-        
-        #TODO: Check if it's always the right column that is selected
+
+        # TODO: Check if it's always the right column that is selected
 
         # Add a name column
 
@@ -118,6 +118,8 @@ class Fly:
 
         data["time"] = data["frame"] / fps
 
+        data["velocity"] = self.compute_velocity(data)
+
         # Implement the metadata
         data["genotype"] = self.metadata["genotype"]
 
@@ -126,8 +128,8 @@ class Fly:
         data["age"] = self.metadata["age"]
 
         return data
-    
-    def compute_velocity(self, x_positions=None, y_positions=None, fps = 80, start_frame=None, stop_frame=None, window=25, polyorder=2):
+
+    def compute_velocity(self,data, x_positions=None, y_positions=None, fps = 80, start_frame=None, stop_frame=None, window=25, polyorder=2):
         """
         Compute the velocity between two frames given x and y positions.
 
@@ -145,25 +147,24 @@ class Fly:
         """
         # If x_positions and y_positions are not provided, use the data from the fly object
         if x_positions is None:
-            x_positions = self.data["pos_x"]
-        
+            x_positions = data["pos_x"]
+
         if y_positions is None:
-            y_positions = self.data["pos_y"]
-            
-        
+            y_positions = data["pos_y"]
+
         # If start_frame or stop_frame is not provided, use the first and last frames respectively
         if start_frame is None:
             start_frame = 0
         if stop_frame is None:
             stop_frame = len(x_positions)-1
-        
+
         # Ensure start and stop frames are within the length of the positions
-        if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
-            raise ValueError("Start and stop frames must be within the length of the positions.")
+        #if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
+        #    raise ValueError("Start and stop frames must be within the length of the positions.")
 
         # Extract the positions between the start and stop frames
-        x_positions = x_positions[start_frame:stop_frame]
-        y_positions = y_positions[start_frame:stop_frame]
+        # x_positions = x_positions[start_frame:stop_frame]
+        # y_positions = y_positions[start_frame:stop_frame]
 
         # Compute the derivatives of the positions using the Savitzky-Golay filter
         dx = savgol_filter(x_positions, window, polyorder, deriv=1, delta=1/fps)
@@ -172,4 +173,14 @@ class Fly:
         # Compute the velocity
         velocity = np.sqrt(dx**2 + dy**2) * Optobot_pixelsize
 
+        # pad the velocity to have the same length as the positions
+        # if len(velocity) < len(x_positions):
+        #     velocity = np.pad(
+        #         velocity,
+        #         (1, len(x_positions) - len(velocity) - 1),  # Add an additional NaN at the start
+        #         mode="constant",
+        #         constant_values=float("nan"),
+        #     )
+
+        #TODO: Clean this up
         return velocity
