@@ -468,7 +468,7 @@ def filter_experiments(source, **criteria):
                     flies.append(fly)
 
     return flies
-
+# Pixel size: 30 mm = 500 pixels, 4 mm = 70 pixels, 1.5 mm = 25 pixels
 
 # TODO : Test the dead_or_empty function in conditions where I know the fly is dead or the arena is empty or not to check success
 class Fly:
