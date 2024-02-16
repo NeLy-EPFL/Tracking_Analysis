@@ -6,6 +6,9 @@ sys.path.append("/home/durrieu/Tracking_Analysis/Utilities")
 from Utilities.Utils import *
 from Utilities.Processing import *
 
+from scipy.signal import savgol_filter
+import numpy as np
+
 # In the optobot, 32 mm  = 832 px
 
 Optobot_pixelsize = 32 / 832  # mm/px
@@ -71,7 +74,8 @@ class Fly:
             if "d" in parts[2]:
                 age = int(parts[2].replace("d", ""))
             else:
-                age = "NA"
+                # In Irene experiments, the only time the age is not in the format "nd" is for the first experiments where the age was 2.
+                age = 2
         elif len(parts) == 2:
             # Get the grand grand grand parent directory name for genotype
             genotype = self.directory.parent.parent.parent.name
@@ -123,5 +127,49 @@ class Fly:
 
         return data
     
-    #def compute_velocity(self, start, end):
-      # TODO: fill this
+    def compute_velocity(self, x_positions=None, y_positions=None, fps = 80, start_frame=None, stop_frame=None, window=25, polyorder=2):
+        """
+        Compute the velocity between two frames given x and y positions.
+
+        Parameters:
+        x_positions (np.array): The x positions of the object.
+        y_positions (np.array): The y positions of the object.
+        start_frame (int): The frame to start the computation.
+        stop_frame (int): The frame to stop the computation.
+        fps (int): The frames per second of the video.
+        window (int): The window length for the Savitzky-Golay filter. Default is 25.
+        polyorder (int): The order of the polynomial for the Savitzky-Golay filter. Default is 2.
+
+        Returns:
+        velocity (np.array): The computed velocity between the start and stop frames.
+        """
+        # If x_positions and y_positions are not provided, use the data from the fly object
+        if x_positions is None:
+            x_positions = self.data["pos_x"]
+        
+        if y_positions is None:
+            y_positions = self.data["pos_y"]
+            
+        
+        # If start_frame or stop_frame is not provided, use the first and last frames respectively
+        if start_frame is None:
+            start_frame = 0
+        if stop_frame is None:
+            stop_frame = len(x_positions)-1
+        
+        # Ensure start and stop frames are within the length of the positions
+        if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
+            raise ValueError("Start and stop frames must be within the length of the positions.")
+
+        # Extract the positions between the start and stop frames
+        x_positions = x_positions[start_frame:stop_frame]
+        y_positions = y_positions[start_frame:stop_frame]
+
+        # Compute the derivatives of the positions using the Savitzky-Golay filter
+        dx = savgol_filter(x_positions, window, polyorder, deriv=1, delta=1/fps)
+        dy = -savgol_filter(y_positions, window, polyorder, deriv=1, delta=1/fps)
+
+        # Compute the velocity
+        velocity = np.sqrt(dx**2 + dy**2) * Optobot_pixelsize
+
+        return velocity
