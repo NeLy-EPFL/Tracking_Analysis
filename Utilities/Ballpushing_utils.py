@@ -2059,6 +2059,9 @@ class Dataset:
             holoviews plot: A jitter boxplot.
         """
 
+        # Filter out groups where the vdim column is all NaN
+        data = data.groupby("Brain region").filter(lambda x: x[vdim].notna().any())
+        
         # Clean the data by removing NaN values for this metric
         data = data.dropna(subset=[vdim])
 
