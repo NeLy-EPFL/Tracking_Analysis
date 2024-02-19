@@ -54,9 +54,23 @@ class Fly:
 
         self.metadata = self.extract_metadata()
 
+        exp_dict = np.load(self.directory / "experiment_dict.npy", allow_pickle=True).item()
+        self.fps = exp_dict["fps"]
+
         self.data = self.load_data()
 
         self.duration = self.data['frame'].max()
+
+        lighting_sequence = [
+            ("off", 10),
+            ("on", 30),
+            ("off", 10),
+            ("on", 30),
+            ("off", 10),
+            ("on", 30),
+        ]
+
+        self.add_lighting_periods(lighting_sequence)
 
     def extract_metadata(self):
         # Get the grand grand parent directory name
@@ -116,7 +130,7 @@ class Fly:
 
         # Add a time column in seconds
 
-        data["time"] = data["frame"] / fps
+        data["time"] = data["frame"] / self.fps
 
         data["velocity"] = self.compute_velocity(data)
 
@@ -129,7 +143,7 @@ class Fly:
 
         return data
 
-    def compute_velocity(self,data, x_positions=None, y_positions=None, fps = 80, start_frame=None, stop_frame=None, window=25, polyorder=2):
+    def compute_velocity(self,data, x_positions=None, y_positions=None, start_frame=None, stop_frame=None, window=25, polyorder=2):
         """
         Compute the velocity between two frames given x and y positions.
 
@@ -145,6 +159,7 @@ class Fly:
         Returns:
         velocity (np.array): The computed velocity between the start and stop frames.
         """
+
         # If x_positions and y_positions are not provided, use the data from the fly object
         if x_positions is None:
             x_positions = data["pos_x"]
@@ -159,7 +174,7 @@ class Fly:
             stop_frame = len(x_positions)-1
 
         # Ensure start and stop frames are within the length of the positions
-        #if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
+        # if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
         #    raise ValueError("Start and stop frames must be within the length of the positions.")
 
         # Extract the positions between the start and stop frames
@@ -167,8 +182,8 @@ class Fly:
         # y_positions = y_positions[start_frame:stop_frame]
 
         # Compute the derivatives of the positions using the Savitzky-Golay filter
-        dx = savgol_filter(x_positions, window, polyorder, deriv=1, delta=1/fps)
-        dy = -savgol_filter(y_positions, window, polyorder, deriv=1, delta=1/fps)
+        dx = savgol_filter(x_positions, window, polyorder, deriv=1, delta=1 / self.fps)
+        dy = -savgol_filter(y_positions, window, polyorder, deriv=1, delta=1 / self.fps)
 
         # Compute the velocity
         velocity = np.sqrt(dx**2 + dy**2) * Optobot_pixelsize
@@ -182,5 +197,28 @@ class Fly:
         #         constant_values=float("nan"),
         #     )
 
-        #TODO: Clean this up
+        # TODO: Clean this up
         return velocity
+
+    def add_lighting_periods(self, lighting_sequence):
+        """
+        Adds a new column to the data indicating whether the light is on or off at each frame.
+
+        Args:
+            lighting_sequence (list of tuples): A list of tuples where each tuple represents a lighting period.
+                The first element of the tuple is a string indicating whether the light is "on" or "off", and the second element is the duration of the period in seconds.
+            fps (int): The number of frames per second. Default is 80.
+        """
+        light_status = []
+        current_frame = 0
+
+        for status, duration in lighting_sequence:
+            duration_in_frames = duration * self.fps
+            light_status.extend([status] * duration_in_frames)
+            current_frame += duration_in_frames
+
+        # If the lighting sequence doesn't cover all frames, extend it with "off" status
+        if current_frame < len(self.data):
+            light_status.extend(["off"] * (len(self.data) - current_frame))
+
+        self.data["light"] = light_status
