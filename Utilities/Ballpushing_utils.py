@@ -1641,7 +1641,7 @@ class Dataset:
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
-            if isinstance(source[0], Experiment):
+            if type(source[0]).__name__ == 'Experiment':
                 # If the source contains Experiment objects, generate a dataset from the experiments
                 self.experiments = source
 
@@ -1649,7 +1649,7 @@ class Dataset:
                     fly for experiment in self.experiments for fly in experiment.flies
                 ]
 
-            elif isinstance(source[0], Fly):
+            elif type(source[0]).__name__ == 'Fly':
                 # make a list of distinct experiments associated with the flies
                 self.experiments = list(set([fly.experiment for fly in source]))
 
@@ -1660,13 +1660,13 @@ class Dataset:
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
 
-        elif isinstance(source, Experiment):
+        elif type(source).__name__ == 'Experiment':
             # If the source is an Experiment object, generate a dataset from the experiment
             self.experiments = [source]
 
             self.flies = source.flies
 
-        elif isinstance(source, Fly):
+        elif type(source).__name__ == 'Fly':
             # If the source is a Fly object, generate a dataset from the fly
             self.experiments = [source.experiment]
 
