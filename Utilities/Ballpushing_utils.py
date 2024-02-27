@@ -466,7 +466,10 @@ def filter_experiments(source, **criteria):
                     flies.append(fly)
 
     return flies
+
+
 # Pixel size: 30 mm = 500 pixels, 4 mm = 70 pixels, 1.5 mm = 25 pixels
+
 
 # TODO : Test the dead_or_empty function in conditions where I know the fly is dead or the arena is empty or not to check success
 class Fly:
@@ -1006,7 +1009,7 @@ class Fly:
                 >= max_yball_relative - threshold
             )
         except StopIteration:
-            ic(f"No final event found for {self.name}")
+            # ic(f"No final event found for {self.name}")
             # Return None or NaN when no final event is found
             final_event, final_event_index = None, None
 
@@ -1641,7 +1644,7 @@ class Dataset:
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
-            if type(source[0]).__name__ == 'Experiment':
+            if type(source[0]).__name__ == "Experiment":
                 # If the source contains Experiment objects, generate a dataset from the experiments
                 self.experiments = source
 
@@ -1649,7 +1652,7 @@ class Dataset:
                     fly for experiment in self.experiments for fly in experiment.flies
                 ]
 
-            elif type(source[0]).__name__ == 'Fly':
+            elif type(source[0]).__name__ == "Fly":
                 # make a list of distinct experiments associated with the flies
                 self.experiments = list(set([fly.experiment for fly in source]))
 
@@ -1660,13 +1663,13 @@ class Dataset:
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
 
-        elif type(source).__name__ == 'Experiment':
+        elif type(source).__name__ == "Experiment":
             # If the source is an Experiment object, generate a dataset from the experiment
             self.experiments = [source]
 
             self.flies = source.flies
 
-        elif type(source).__name__ == 'Fly':
+        elif type(source).__name__ == "Fly":
             # If the source is a Fly object, generate a dataset from the fly
             self.experiments = [source.experiment]
 
@@ -1747,9 +1750,11 @@ class Dataset:
                 ]
             elif metrics == "summary":
                 dataset_list = [
-                    df
-                    if not df.empty
-                    else ic(f"Empty DataFrame for fly {fly.directory}")
+                    (
+                        df
+                        if not df.empty
+                        else ic(f"Empty DataFrame for fly {fly.directory}")
+                    )
                     for fly in self.flies
                     if (df := self._prepare_dataset_summary_metrics(fly)) is not None
                 ]
@@ -1778,7 +1783,7 @@ class Dataset:
             # ic(self.data.head())
 
         except Exception as e:
-            ic(f"An error occurred: {e}")
+            print(f"An error occurred: {e}")
             traceback.print_exc()
             self.data = pd.DataFrame()
 
@@ -1858,25 +1863,27 @@ class Dataset:
         # Create a dictionary of metric calculation functions
         metric_funcs = {
             "NumberEvents": lambda: [fly.get_events_number()],
-            "FinalEvent": lambda: [final_event[1]]
-            if final_event != (None, None)
-            else [None],
-            "FinalTime": lambda: [final_event[0][2] / fly.experiment.fps]
-            if final_event != (None, None)
-            else [None],
-            "SignificantEvents": lambda: [len(significant_events)]
-            if significant_events
-            else [0],
-            "SignificantFirst": lambda: [
-                fly.interaction_events.index(significant_events[0])
-            ]
-            if significant_events
-            else [None],
-            "SignificantFirstTime": lambda: [
-                significant_events[0][0] / fly.experiment.fps
-            ]
-            if significant_events
-            else [None],
+            "FinalEvent": lambda: (
+                [final_event[1]] if final_event != (None, None) else [None]
+            ),
+            "FinalTime": lambda: (
+                [final_event[0][2] / fly.experiment.fps]
+                if final_event != (None, None)
+                else [None]
+            ),
+            "SignificantEvents": lambda: (
+                [len(significant_events)] if significant_events else [0]
+            ),
+            "SignificantFirst": lambda: (
+                [fly.interaction_events.index(significant_events[0])]
+                if significant_events
+                else [None]
+            ),
+            "SignificantFirstTime": lambda: (
+                [significant_events[0][0] / fly.experiment.fps]
+                if significant_events
+                else [None]
+            ),
             "CumulatedBreaks": lambda: [
                 fly.get_cumulated_breaks_duration() / fly.experiment.fps
             ],
@@ -2089,15 +2096,6 @@ class Dataset:
         # Get the 'flypath' data
         flypath_data = data["flypath"]
 
-        # Define a new TapTool
-        tap = TapTool(callback=CustomJS(args=dict(source=data), code="""
-            console.log('tap event occurred at x-position: ' + cb_data.source.selected.indices);
-            var indices = cb_data.source.selected.indices;
-            for (var i = 0; i < indices.length; i++) {
-                console.log('flypath: ' + source.data['flypath'][indices[i]]);
-            }
-        """))
-
         # Compute the bootstrap confidence interval for the metric
         bs_ci = self.compute_bs_ci(vdim)
 
@@ -2123,7 +2121,7 @@ class Dataset:
                 kdims=["label", "Brain region"],
             )
             .groupby("Brain region")
-            .opts(**plot_options["scatter"], tools=[hover, tap], ylim=(y_min, y_max))
+            .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
         )
 
         if bs_ci is not None:
