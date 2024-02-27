@@ -1676,7 +1676,11 @@ class Dataset:
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
 
-        self.flies = [fly for fly in self.flies if fly.flyball_positions is not None]
+        self.flies = [
+            fly
+            for fly in self.flies
+            if hasattr(fly, "flyball_positions") and fly.flyball_positions is not None
+        ]
         self.flies = [fly for fly in self.flies if not fly.dead_or_empty]
 
         self.brain_regions_path = brain_regions_path
@@ -1792,7 +1796,12 @@ class Dataset:
             pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
         """
 
-        dataset = fly.flyball_positions
+        try:
+            dataset = fly.flyball_positions
+        # If the fly doesn't have tracking data, don't include it in the dataset
+        except AttributeError as e:
+            ic(f"Error occurred while preparing dataset for fly {fly.name}: {str(e)}")
+            return
 
         if interactions:
             fly.annotate_events()
@@ -2061,7 +2070,7 @@ class Dataset:
 
         # Filter out groups where the vdim column is all NaN
         data = data.groupby("Brain region").filter(lambda x: x[vdim].notna().any())
-        
+
         # Clean the data by removing NaN values for this metric
         data = data.dropna(subset=[vdim])
 
@@ -2079,7 +2088,7 @@ class Dataset:
 
         # Get the 'flypath' data
         flypath_data = data["flypath"]
-        
+
         # Define a new TapTool
         tap = TapTool(callback=CustomJS(args=dict(source=data), code="""
             console.log('tap event occurred at x-position: ' + cb_data.source.selected.indices);
@@ -2088,7 +2097,7 @@ class Dataset:
                 console.log('flypath: ' + source.data['flypath'][indices[i]]);
             }
         """))
-        
+
         # Compute the bootstrap confidence interval for the metric
         bs_ci = self.compute_bs_ci(vdim)
 
