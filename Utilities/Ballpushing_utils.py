@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 import itertools
 from operator import itemgetter
+from icecream import ic
 
 import holoviews as hv
 from bokeh.models import HoverTool
@@ -99,7 +100,7 @@ def load_object(filename):
 #     Dataset_list = []
 
 #     for folder in Folders:
-#         print(f"Processing {folder}...")
+#         ic(f"Processing {folder}...")
 #         # Read the metadata.json file
 #         with open(folder / "Metadata.json", "r") as f:
 #             metadata = json.load(f)
@@ -118,15 +119,15 @@ def load_object(filename):
 #                 metadata_dict[var] = {
 #                     k.lower(): v for k, v in metadata_dict[var].items()
 #                 }
-#             # print(metadata_dict)
+#             # ic(metadata_dict)
 
 #             files = list(folder.glob("**/*.mp4"))
 
 #         for file in files:
-#             # print(file.name)
+#             # ic(file.name)
 #             # Get the arena and corridor numbers from the parent (corridor) and grandparent (arena) folder names
 #             arena = file.parent.parent.name
-#             # print(arena)
+#             # ic(arena)
 #             corridor = file.parent.name
 
 #             start, end = np.load(file.parent / "coordinates.npy")
@@ -136,18 +137,18 @@ def load_object(filename):
 #             # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
 #             try:
 #                 flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
-#                 # print(flypath.name)
+#                 # ic(flypath.name)
 #             except IndexError:
-#                 # print(f"No fly tracking file found for {file.name}, skipping...")
+#                 # ic(f"No fly tracking file found for {file.name}, skipping...")
 
 #                 continue
 
 #             # Define ballpath as the *tracked*.analysis.h5 file in the same folder as the video
 #             try:
 #                 ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
-#                 # print(ballpath.name)
+#                 # ic(ballpath.name)
 #             except IndexError:
-#                 print(f"No ball tracking file found for {file.name}, skipping...")
+#                 ic(f"No ball tracking file found for {file.name}, skipping...")
 
 #                 continue
 
@@ -158,7 +159,7 @@ def load_object(filename):
 #                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
 #                 )
 
-#                 # print(data.head())
+#                 # ic(data.head())
 #                 # Apply savgol_lowpass_filter to each column that is not Frame or time
 #                 # for col in data.columns:
 #                 #     if col not in ["Frame", "time"]:
@@ -172,7 +173,7 @@ def load_object(filename):
 #                 data["Fly"] = f"Fly {Flycount}"
 
 #                 if "Flipped" in folder.name:
-#                     # print(
+#                     # ic(
 #                     #     f"Flipped video, flipping ball and fly y coordinates, flipping start and end."
 #                     # )
 #                     data["yball_smooth"] = -data["yball_smooth"]
@@ -210,8 +211,8 @@ def load_object(filename):
 #             except Exception as e:
 #                 error_message = str(e)
 #                 traceback_message = traceback.format_exc()
-#                 # print(f"Error processing video {vidname}: {error_message}")
-#                 print(traceback_message)
+#                 # ic(f"Error processing video {vidname}: {error_message}")
+#                 ic(traceback_message)
 
 #     # Concatenate all dataframes in the list into a single dataframe
 #     Dataset = pd.concat(Dataset_list, ignore_index=True).reset_index()
@@ -292,13 +293,13 @@ def load_object(filename):
 
 # def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
 #     if isinstance(source, Path):
-#         print(f"Path: {source}")
+#         ic(f"Path: {source}")
 #         flypath = next(source.glob("*tracked_fly*.analysis.h5"))
 #         ballpath = next(source.glob("*tracked*.analysis.h5"))
 #         df = get_coordinates(flypath=flypath, ballpath=ballpath)
 
 #     elif isinstance(source, pd.DataFrame):
-#         print(f"DataFrame: {source.shape}")
+#         ic(f"DataFrame: {source.shape}")
 #         df = source
 
 #     else:
@@ -377,15 +378,15 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     """
 
     if isinstance(source, Path):
-        print(f"Path: {source}")
+        ic(f"Path: {source}")
         df = get_coordinates(flypath=source, ball=False, xvals=True)
 
     elif isinstance(source, str):
-        print(f"String: {source}")
+        ic(f"String: {source}")
         df = get_coordinates(flypath=source, ball=False, xvals=True)
 
     elif isinstance(source, pd.DataFrame):
-        print(f"DataFrame: {source.shape}")
+        ic(f"DataFrame: {source.shape}")
         df = source
     else:
         raise TypeError(
@@ -421,12 +422,9 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     pause_groups["last"] = pd.to_datetime(pause_groups["last"], unit="s").dt.time
 
     # Print the pause events
-    print(pause_groups)
+    ic(pause_groups)
 
     return pause_events
-
-
-# TODO: implement icecream
 
 
 def filter_experiments(source, **criteria):
@@ -524,8 +522,10 @@ class Fly:
                 genotype = self.arena_metadata["Genotype"]
 
                 # If the genotype is None, skip the fly
-                if genotype is None:
-                    raise KeyError(f"Genotype is None: {self.name} is empty.")
+                if genotype.lower() == "none":
+                    ic(f"Genotype is None: {self.name} is empty.")
+                    self.dead_or_empty = True
+                    return
 
                 # Convert to lowercase for comparison
                 lowercase_index = brain_regions.index.str.lower()
@@ -536,7 +536,7 @@ class Fly:
                     "Simplified region"
                 ]
             except KeyError:
-                print(
+                ic(
                     f"Genotype {genotype} not found in brain regions table for {self.name}. Defaulting to PR"
                 )
                 self.nickname = "PR"
@@ -549,23 +549,23 @@ class Fly:
 
         try:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
-            # print(flypath.name)
+            # ic(flypath.name)
         except IndexError:
             self.flytrack = None
-            # print(f"No fly tracking file found for {self.name}, skipping...")
+            # ic(f"No fly tracking file found for {self.name}, skipping...")
 
         try:
             self.balltrack = list(directory.glob("*tracked_ball*.analysis.h5"))[0]
-            # print(ballpath.name)
+            # ic(ballpath.name)
         except IndexError:
             self.balltrack = None
-            # print(f"No ball tracking file found for {self.name}, skipping...")
+            # ic(f"No ball tracking file found for {self.name}, skipping...")
 
         # Check if the coordinates.npy file exists in the fly directory
 
         if not (self.directory / "coordinates.npy").exists():
             # Run the detect_boundaries function on the Fly associated experiment to generate the coordinates.npy file for all flies in the experiment
-            print(
+            ic(
                 f"No boundaries found. Generating coordinates.npy file for {self.experiment.directory}..."
             )
             self.detect_boundaries()
@@ -636,10 +636,10 @@ class Fly:
 
         # If there's a peak, the arena is not empty
         if np.any(crop_bin > 0):
-            # print(f"{arena}/{self.video.name} is not empty")
+            # ic(f"{arena}/{self.video.name} is not empty")
             return False
         else:
-            print(f"{self.name} is empty")
+            ic(f"{self.name} is empty")
             return True
 
     def check_dead(self):
@@ -665,10 +665,10 @@ class Fly:
             )
             > 30
         ):
-            # print(f"{self.name} is alive")
+            # ic(f"{self.name} is alive")
             return False
         else:
-            print(f"{self.name} is dead or in poor condition")
+            ic(f"{self.name} is dead or in poor condition")
             return True
 
     def get_arena_metadata(self):
@@ -700,7 +700,7 @@ class Fly:
         """
         # Print the metadata for this fly's arena
         for var, data in self.arena_metadata.items():
-            print(f"{var}: {data}")
+            ic(f"{var}: {data}")
 
     def detect_boundaries(self, threshold=100):
         """Detects the start and end of the corridor in the video. This is later used to compute the relative distance of the fly from the start of the corridor.
@@ -716,7 +716,7 @@ class Fly:
         video_file = self.video
 
         if not video_file.exists():
-            print(f"Error: Video file {video_file} does not exist")
+            ic(f"Error: Video file {video_file} does not exist")
             return None, None
 
         # open the first frame of the video
@@ -725,10 +725,10 @@ class Fly:
         cap.release()
 
         if not ret:
-            print(f"Error: Could not read frame from video {video_file}")
+            ic(f"Error: Could not read frame from video {video_file}")
             return None, None
         elif frame is None:
-            print(f"Error: Frame is None for video {video_file}")
+            ic(f"Error: Frame is None for video {video_file}")
             return None, None
 
         # Convert to grayscale
@@ -875,7 +875,7 @@ class Fly:
         # If no frames are found within the limit values, return an empty list
         if len(all_frames_above_lim) == 0:
             if plot_signals:
-                print(f"Any point is between {thresh[0]} and {thresh[1]}")
+                ic(f"Any point is between {thresh[0]} and {thresh[1]}")
                 plt.plot(signal, label=f"{signal_name}-filtered")
                 plt.legend()
                 plt.show()
@@ -894,7 +894,7 @@ class Fly:
         # Plot the signal if required
         if plot_signals:
             limit_value = thresh[0] if thresh[1] == np.inf else thresh[1]
-            print(all_frames_above_lim[split_points])
+            ic(all_frames_above_lim[split_points])
             plt.plot(signal, label=f"{signal_name}-filtered")
 
         # Iterate over the split points to find events
@@ -941,7 +941,7 @@ class Fly:
             if duration > event_min_length and signal_within_limits > 0.75:
                 events.append([start_roi, end_roi, duration])
                 if plot_signals:
-                    print(
+                    ic(
                         start_roi,
                         end_roi,
                         duration,
@@ -1006,7 +1006,7 @@ class Fly:
                 >= max_yball_relative - threshold
             )
         except StopIteration:
-            print(f"No final event found for {self.name}")
+            ic(f"No final event found for {self.name}")
             # Return None or NaN when no final event is found
             final_event, final_event_index = None, None
 
@@ -1293,7 +1293,7 @@ class Fly:
         """
 
         if self.flyball_positions is None:
-            print(f"No tracking data available for {self.name}. Skipping...")
+            ic(f"No tracking data available for {self.name}. Skipping...")
             return
 
         if outpath is None:
@@ -1314,7 +1314,7 @@ class Fly:
         self.concatenate_clips(clips, outpath, fps, width, height, vidname)
         for clip_path in clips:
             os.remove(clip_path)
-        print(f"Finished processing {vidname}!")
+        ic(f"Finished processing {vidname}!")
 
     def draw_circles(self, frame, flyball_coordinates):
         """
@@ -1397,7 +1397,7 @@ class Fly:
 
         # If saving, write the new video clip to a file
         if save:
-            print(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
+            ic(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
             sped_up_clip.write_videofile(
                 str(output_path), fps=clip.fps
             )  # Save the sped-up clip
@@ -1416,7 +1416,7 @@ class Fly:
             # Set the title of the Pygame window
             pygame.display.set_caption(f"Preview (speed = x{speed})")
 
-            print(f"Previewing {self.video.name} at {speed}x speed")
+            ic(f"Previewing {self.video.name} at {speed}x speed")
 
             sped_up_clip.preview(fps=self.experiment.fps * speed)
 
@@ -1427,7 +1427,7 @@ class Fly:
         clip.close()
 
         if not save and not preview:
-            print("No action specified. Set save or preview argument to True.")
+            ic("No action specified. Set save or preview argument to True.")
 
 
 class Experiment:
@@ -1489,7 +1489,7 @@ class Experiment:
                 metadata_dict[var] = {
                     k.lower(): v for k, v in metadata_dict[var].items()
                 }
-            # print(metadata_dict)
+            # ic(metadata_dict)
             return metadata_dict
 
     def load_fps(self):
@@ -1506,7 +1506,7 @@ class Experiment:
 
         else:
             fps = 30
-            print(
+            ic(
                 f"Warning: fps.npy file not found in {self.directory}; Defaulting to 30 fps."
             )
 
@@ -1539,7 +1539,7 @@ class Experiment:
                 fly = Fly(mp4_file.parent, experiment=self)
                 flies.append(fly)
             except TypeError as e:
-                print(f"Error while loading fly from {mp4_file.parent}: {e}")
+                ic(f"Error while loading fly from {mp4_file.parent}: {e}")
 
         return flies
 
@@ -1566,10 +1566,10 @@ class Experiment:
     def generate_grid(self, preview=False, overwrite=False):
         # Check if the grid image already exists
         if (self.directory / "grid.png").exists() and not overwrite:
-            print(f"Grid image already exists for {self.directory.name}")
+            ic(f"Grid image already exists for {self.directory.name}")
             return
         else:
-            print(f"Generating grid image for {self.directory.name}")
+            ic(f"Generating grid image for {self.directory.name}")
 
             frames = []
             min_rows = []
@@ -1600,7 +1600,7 @@ class Experiment:
                 try:
                     axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
                 except:
-                    print(f"Error: Could not plot frame {i} for video {flypath}")
+                    ic(f"Error: Could not plot frame {i} for video {flypath}")
                     # go to the next folder
                     continue
 
@@ -1745,14 +1745,14 @@ class Dataset:
                 dataset_list = [
                     df
                     if not df.empty
-                    else print(f"Empty DataFrame for fly {fly.directory}")
+                    else ic(f"Empty DataFrame for fly {fly.directory}")
                     for fly in self.flies
                     if (df := self._prepare_dataset_summary_metrics(fly)) is not None
                 ]
 
                 # Debugging step: print out each DataFrame in dataset_list
-                for df in dataset_list:
-                    print(df)
+                # for df in dataset_list:
+                #     ic(df)
 
             if dataset_list:  # Only concatenate if the list is not empty
                 self.data = pd.concat(dataset_list, ignore_index=True).reset_index(
@@ -1771,10 +1771,10 @@ class Dataset:
                 + ")"
             )
 
-            print(self.data.head())
+            # ic(self.data.head())
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            ic(f"An error occurred: {e}")
             traceback.print_exc()
             self.data = pd.DataFrame()
 
@@ -1937,8 +1937,8 @@ class Dataset:
                     self.metadata.append(var)
 
         except Exception as e:
-            print(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
-            print(f"Current dataset:\n{dataset}")
+            ic(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
+            ic(f"Current dataset:\n{dataset}")
 
         return dataset
 
@@ -2029,7 +2029,7 @@ class Dataset:
 
         # Check if there are any control flies in the dataset
         if control_data.empty:
-            print("No flies with control genotypes found in the dataset.")
+            ic("No flies with control genotypes found in the dataset.")
             return None
 
         # Drop rows with NaN values in the metric column
@@ -2125,7 +2125,7 @@ class Dataset:
             )
 
         else:
-            print("No control data to generate the confidence interval.")
+            ic("No control data to generate the confidence interval.")
             hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
                 ylabel=f"{vdim}", **plot_options["plot"]
             )
