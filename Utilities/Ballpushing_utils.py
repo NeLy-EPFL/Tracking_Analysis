@@ -2003,8 +2003,8 @@ class Dataset:
             GroupedData, SampleSize, on=["Nickname", "Simplified region"]
         )
 
-        # Modify Nickname column
-        GroupedData["Nickname"] = (
+        # Make a new column with the nickname and the sample size
+        GroupedData["label"] = (
             GroupedData["Nickname"]
             + " (n = "
             + GroupedData["SampleSize"].astype(str)
