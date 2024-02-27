@@ -34,7 +34,6 @@ hv_main = {
         "show_grid": True,
         "fontscale": 1.5,
         "title": "",
-        "toolbar": None,
     },
 }
 
