@@ -1,8 +1,11 @@
 import math
+import os
 import subprocess
+import json
 from pathlib import Path
+from operator import itemgetter
+from itertools import groupby
 import re
-
 
 def get_video_size(video_path):
     """
@@ -83,7 +86,7 @@ def create_grid_video(input_folder, output_path, keyword=None):
     """
     # Set the input folder path
     input_folder = Path(input_folder)
-    
+
     # Get all video files from the input folder
     if keyword:
         input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
@@ -151,9 +154,131 @@ def create_grid_video(input_folder, output_path, keyword=None):
     subprocess.run(ffmpeg_args)
 
 
+def get_video_dimensions(video_path):
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "json",
+        str(video_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    dimensions = json.loads(result.stdout)["streams"][0]
+    return dimensions["width"], dimensions["height"]
+
+
+def create_horizontal_video(input_folder, output_path, test_mode=False):
+    # Step 1: Get all the videos from the input folder
+    input_folder = Path(input_folder)
+    input_files = list(input_folder.glob("*.mp4"))
+
+    # Step 2: Parse the date, arena, and corridor from the video names and make groups based on date and arena
+    video_info = []
+    for input_file in input_files:
+        match = re.match(r"(\d{6})_.*_arena(\d+)_corridor(\d+)_.*", input_file.stem)
+        if match:
+            date, arena, corridor = match.groups()
+            video_info.append((date, int(arena), int(corridor), input_file))
+    video_info.sort()
+    video_groups = [list(group) for _, group in groupby(video_info, itemgetter(0, 1))]
+    
+    # Step 3: Make bundle videos of each group and add a label on top of the bundle
+    for i, group in enumerate(video_groups):
+        date, arena, _, _ = group[0]
+        label_video = input_folder / f"label_{date}_arena{arena}.mp4"
+
+        # Sort the videos in the group by corridor
+        group.sort(key=itemgetter(2))
+
+        # Transpose and horizontally stack the videos in the group
+        group_videos = [str(video) for _, _, _, video in group]
+        
+        print(group_videos)
+        if len(group_videos) > 1:
+            filter_complex = ";".join(
+                [f"[{i}:v]transpose=2[v{i}]" for i in range(len(group_videos))]
+            ) + ";" + "".join([f"[v{i}]" for i in range(len(group_videos))]) + f"hstack={len(group_videos)}"
+        else:
+            filter_complex = f"[0:v]transpose=2"
+
+        ffmpeg_command = [
+            "ffmpeg",
+            *sum([["-i", video] for video in group_videos], []),
+            "-filter_complex",
+            filter_complex,
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",  # Overwrite output files without asking
+        ]
+        if test_mode:
+            ffmpeg_command.extend(["-ss", "0", "-t", "10"])
+        ffmpeg_command.append(f"bundle_{i}.mp4")
+            
+        print (f"ffmpeg_command : {ffmpeg_command}")
+        subprocess.run(ffmpeg_command)
+
+        # Create a label video
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=1280x720:d=1:r=25",
+                "-vf",
+                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='{date} Arena {arena}':fontsize=30:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2",
+                "-c:v",
+                "libx264",
+                "-tune",
+                "stillimage",
+                "-pix_fmt",
+                "yuv420p",
+                "-y",  # Overwrite output files without asking
+                str(label_video),
+            ]
+        )
+
+        # Vertically stack the label video on top of the bundle
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-i",
+                str(label_video),
+                "-i",
+                f"bundle_{i}.mp4",
+                "-filter_complex",
+                "[0:v][1:v]vstack",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-y",  # Overwrite output files without asking
+                f"bundle_{i}.mp4",
+            ]
+        )
+
+    # Step 4: Stack the bundles together
+    bundle_files = " ".join([f"bundle_{i}.mp4" for i in range(len(video_groups))])
+    subprocess.run(
+        f"ffmpeg -i 'concat:{bundle_files}' -c copy {output_path}", shell=True
+    )
+
+    # Remove the temporary bundle files
+    for i in range(len(video_groups)):
+        os.remove(f"bundle_{i}.mp4")
+
+
+# TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
+
 # Example usage:
-create_grid_video(
-    input_folder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_rotated",
-    output_path="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Grids/Newcrop_grid_rotated_black.mp4",
-    #keyword="black_clip",
+create_horizontal_video(
+    input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC",
+    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/test_labeled.mp4",
+    test_mode=True,
+    # keyword="black_clip",
 )
