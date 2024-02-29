@@ -33,7 +33,7 @@ def find_experiments(directory):
             if len(list(x.glob("*.mp4"))) > 0 and len(list(x.glob("*.pkl"))) > 0:
                 experiments.append(x)
             experiments.extend(find_experiments(x))
-            
+
     return experiments
 
 
@@ -54,12 +54,14 @@ class Fly:
 
         self.metadata = self.extract_metadata()
 
-        exp_dict = np.load(self.directory / "experiment_dict.npy", allow_pickle=True).item()
+        exp_dict = np.load(
+            self.directory / "experiment_dict.npy", allow_pickle=True
+        ).item()
         self.fps = exp_dict["fps"]
 
         self.data = self.load_data()
 
-        self.duration = self.data['frame'].max()
+        self.duration = self.data["frame"].max()
 
         lighting_sequence = [
             ("off", 10),
@@ -134,6 +136,8 @@ class Fly:
 
         data["velocity"] = self.compute_velocity(data)
 
+        data["cumulated_distance"] = self.cumulated_distance(data["velocity"])
+
         # Implement the metadata
         data["genotype"] = self.metadata["genotype"]
 
@@ -143,7 +147,16 @@ class Fly:
 
         return data
 
-    def compute_velocity(self,data, x_positions=None, y_positions=None, start_frame=None, stop_frame=None, window=25, polyorder=2):
+    def compute_velocity(
+        self,
+        data,
+        x_positions=None,
+        y_positions=None,
+        start_frame=None,
+        stop_frame=None,
+        window=25,
+        polyorder=2,
+    ):
         """
         Compute the velocity between two frames given x and y positions.
 
@@ -171,7 +184,7 @@ class Fly:
         if start_frame is None:
             start_frame = 0
         if stop_frame is None:
-            stop_frame = len(x_positions)-1
+            stop_frame = len(x_positions) - 1
 
         # Ensure start and stop frames are within the length of the positions
         # if start_frame < 0 or start_frame >= len(x_positions) or stop_frame < 0 or stop_frame >= len(x_positions):
@@ -199,6 +212,18 @@ class Fly:
 
         # TODO: Clean this up
         return velocity
+
+    def cumulated_distance(self, velocity):
+        """
+        Compute the cumulated distance traveled over time given the velocity.
+
+        Returns:
+        cumulated_distance (np.array): The cumulated distance traveled over time.
+        """
+        # Compute the cumulated distance
+        cumulated_distance = np.cumsum(velocity)
+
+        return cumulated_distance
 
     def add_lighting_periods(self, lighting_sequence):
         """
