@@ -170,14 +170,15 @@ def get_video_dimensions(video_path):
     return dimensions["width"], dimensions["height"]
 
 
-def create_horizontal_video(input_folder, output_path, keyword=None, test_mode=False): 
+def create_horizontal_video(
+    source, output_path, keyword=None, test_mode=False
+):
+    """Creates a horizontal video from the videos in the given input folder or files.
 
-    """ Creates a horizontal video from the videos in the given input folder.
-    
     Parameters
     ----------
-    input_folder : Path
-        The path to the folder containing the input videos.
+    input_folder_or_files : Path or list of Path
+        The path to the folder containing the input videos or a list of video file paths.
     output_path : Path
         The path to the output video.
     keyword : str, optional
@@ -187,20 +188,23 @@ def create_horizontal_video(input_folder, output_path, keyword=None, test_mode=F
     -------
     None
     """
-    # Set the input folder path
-    input_folder = Path(input_folder)
-
-    # Get all video files from the input folder
-    if keyword:
-        input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
-        # Sort the input files by the number in their name
-        input_files.sort(key=lambda f: int(f.stem.split("_")[1]))
+    # Check if input_folder_or_files is a directory path or a list of file paths
+    if isinstance(source, (str, Path)):
+        input_folder = Path(source)
+        # Get all video files from the input folder
+        if keyword:
+            input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
+            # Sort the input files by the number in their name
+            input_files.sort(key=lambda f: int(f.stem.split("_")[1]))
+        else:
+            # If no keyword is provided, sort by numbers in file name
+            input_files = sorted(
+                list(input_folder.glob("*.mp4")),
+                key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
+            )
     else:
-        # If no keyword is provided, sort by numbers in file name
-        input_files = sorted(
-            list(input_folder.glob("*.mp4")),
-            key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
-        )
+        # If input_folder_or_files is a list of file paths, use it directly
+        input_files = source
 
     print(f"input_files: {input_files}")
 
@@ -234,6 +238,35 @@ def create_horizontal_video(input_folder, output_path, keyword=None, test_mode=F
     )
     # Run the ffmpeg command
     subprocess.run(ffmpeg_args)
+
+
+def make_bundles(input_folder, output_folder, keyword=None, test_mode=False):
+    # Convert input_folder and output_folder to Path objects
+    input_folder = Path(input_folder)
+    output_folder = Path(output_folder)
+
+    # Get all video files from the input folder
+    video_files = sorted(input_folder.glob("*.mp4"))
+
+    # Group the video files by date and arena
+    video_groups = []
+    for key, group in groupby(
+        video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[-3])
+    ):
+        video_groups.append(list(group))
+
+    # Create a horizontal video for each group
+    for group in video_groups:
+        date, arena = (
+            group[0].stem.split("_")[0],
+            group[0].stem.split("_")[-3],
+        )  # Get the date and arena from the first video in the group
+
+        # Sort the videos in the group by corridor number
+        group.sort(key=lambda f: int(f.stem.split("_")[-2].replace("corridor", "")))
+
+        output_path = output_folder / f"bundle_{date}_{arena}.mp4"
+        create_horizontal_video(group, output_path, test_mode=test_mode)
 
 
 def Test_bundle(input_folder, output_path, test_mode=False):
@@ -342,9 +375,15 @@ def Test_bundle(input_folder, output_path, test_mode=False):
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 
 # Example usage:
-create_horizontal_video(
-    input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC",
-    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/test_short.mp4",
+# create_horizontal_video(
+#     input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC",
+#     output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/test_short.mp4",
+#     test_mode=True,
+#     # keyword="black_clip",
+# )
+
+make_bundles(
+    input_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC"),
+    output_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids"),
     test_mode=True,
-    # keyword="black_clip",
 )
