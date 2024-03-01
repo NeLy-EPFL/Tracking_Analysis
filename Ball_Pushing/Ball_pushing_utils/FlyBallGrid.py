@@ -175,7 +175,7 @@ def get_video_dimensions(video_path):
 
 
 def create_horizontal_video(
-    source, output_path, date=None, arena=None, keyword=None, test_mode=False
+    source, output_path, transpose=True, date=None, arena=None, spacing=None, keyword=None, test_mode=False
 ):
     """Creates a horizontal video from the videos in the given input folder or files.
 
@@ -230,10 +230,18 @@ def create_horizontal_video(
     print(f"num_videos: {num_videos}")
 
     # Create the filter_complex argument for the ffmpeg command
-    filter_complex = "".join(
-        f"[{i}:v]transpose=2[s{i}];[s{i}]scale=-1:{width}[v{i}];"
-        for i in range(num_videos)
-    )
+    if transpose:
+        filter_complex = "".join(
+            f"[{i}:v]transpose=2[s{i}];[s{i}]scale=-1:{width}[v{i}];"
+            + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
+            for i in range(num_videos)
+        )
+    else:
+        filter_complex = "".join(
+            f"[{i}:v]scale=-1:{width}[v{i}];"
+            + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
+            for i in range(num_videos)
+        )
     hstack_inputs = "".join(f"[v{i}]" for i in range(num_videos))
     filter_complex += f"{hstack_inputs}hstack=inputs={num_videos}[v]"
 
@@ -283,7 +291,42 @@ def make_bundles(input_folder, output_folder, keyword=None, test_mode=False):
         group.sort(key=lambda f: int(f.stem.split("_")[-2].replace("corridor", "")))
 
         output_path = output_folder / f"bundle_{date}_{arena}.mp4"
-        create_horizontal_video(group, output_path, date, arena, test_mode=test_mode)
+        create_horizontal_video(
+            source=group,
+            output_path=output_path,
+            date=date,
+            arena=arena,
+            spacing=None,
+            test_mode=test_mode,
+            transpose=True,
+        )
+
+def assemble_bundles(
+    input_folder, output_path, date=None, arena=None, keyword=None, test_mode=False
+):
+    # Convert input_folder to Path object
+    input_folder = Path(input_folder)
+
+    # Get all bundle files from the input folder
+    bundle_files = sorted(
+        [f for f in input_folder.glob("*bundle*.mp4")],
+        key=lambda f: (
+            f.stem.split("_")[1],
+            f.stem.split("_")[2],
+        ),  # Sort by date and arena
+    )
+
+    # Create a horizontal video from the bundles without transposing them
+    create_horizontal_video(
+        source=bundle_files,
+        output_path=output_path,
+        date=date,
+        arena=arena,
+        spacing=10,
+        keyword=keyword,
+        test_mode=test_mode,
+        transpose=False,
+    )
 
 
 # Example usage:
@@ -294,9 +337,15 @@ def make_bundles(input_folder, output_folder, keyword=None, test_mode=False):
 #     # keyword="black_clip",
 # )
 
-make_bundles(
-    input_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC"),
-    output_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids"),
+# make_bundles(
+#     input_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC"),
+#     output_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids"),
+#     test_mode=True,
+# )
+
+assemble_bundles(
+    input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids",
+    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/240129_TNT_Fine_TNTxDDC.mp4",
     test_mode=True,
 )
 
