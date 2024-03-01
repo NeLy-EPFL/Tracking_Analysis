@@ -329,6 +329,44 @@ def assemble_bundles(
     )
 
 
+def process_videos(
+    input_folder,
+    output_folder=None,
+    output_path=None,
+    keyword=None,
+    test_mode=False,
+    spacing=10,
+):
+    # Convert input_folder to Path object
+    input_folder = Path(input_folder)
+
+    # Use input_folder as the default value for output_folder and output_path if they are not provided
+    if output_folder is None:
+        output_folder = input_folder
+    else:
+        output_folder = Path(output_folder)
+
+    if output_path is None:
+        output_path = input_folder / "output.mp4"
+    else:
+        output_path = Path(output_path)
+
+    # Step 1: Make bundles
+    make_bundles(input_folder, output_folder, keyword, test_mode)
+
+    # Step 2: Assemble bundles
+    assemble_bundles(
+        output_folder,
+        output_path,
+        keyword=keyword,
+        test_mode=test_mode,
+    )
+
+    # Step 3: Remove the bundles
+    for bundle_file in output_folder.glob("*bundle*.mp4"):
+        bundle_file.unlink()
+
+
 # Example usage:
 # create_horizontal_video(
 #     input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC",
@@ -343,10 +381,14 @@ def assemble_bundles(
 #     test_mode=True,
 # )
 
-assemble_bundles(
-    input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids",
-    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/240129_TNT_Fine_TNTxDDC.mp4",
-    test_mode=True,
+# assemble_bundles(
+#     input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids",
+#     output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/240129_TNT_Fine_TNTxDDC.mp4",
+#     test_mode=True,
+# )
+
+process_videos(
+    input_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)")
 )
 
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
