@@ -6,15 +6,20 @@ from pathlib import Path
 from operator import itemgetter
 from itertools import groupby
 import re
+import time
+
+FONT_FILE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+VIDEO_EXT = "*.mp4"
+BUNDLE_KEYWORD = "*bundle*.mp4"
 
 
-def get_video_size(video_path):
+def get_video_size(video: Path) -> tuple:
     """
     Returns the width and height of the video at the given path.
 
     Parameters
     ----------
-    video_path : Path
+    video : Path
         The path to the video file.
 
     Returns
@@ -37,13 +42,13 @@ def get_video_size(video_path):
             "stream=width,height",
             "-of",
             "csv=p=0",
-            str(video_path),
+            str(video),
         ],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        print(f"Error running ffprobe on {video_path}: {result.stderr}")
+        print(f"Error running ffprobe on {video}: {result.stderr}")
         return None
     else:
         return map(int, result.stdout.strip().split(","))
@@ -96,7 +101,7 @@ def create_grid_video(input_folder, output_path, keyword=None):
     else:
         # If no keyword is provided, sort by numbers in file name
         input_files = sorted(
-            list(input_folder.glob("*.mp4")),
+            list(input_folder.glob(VIDEO_EXT)),
             key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
         )
 
@@ -175,9 +180,10 @@ def get_video_dimensions(video_path):
 
 
 def create_horizontal_video(
-    source, output_path, transpose=True, date=None, arena=None, spacing=None, keyword=None, test_mode=False
+    source, output_path, transpose=True, date=None, arena=None, spacing=None, test_mode=False
 ):
-    """Creates a horizontal video from the videos in the given input folder or files.
+    """
+    Stack videos horizontally and add date and arena labels if provided.
 
     Parameters
     ----------
@@ -185,107 +191,125 @@ def create_horizontal_video(
         The path to the folder containing the input videos or a list of video file paths.
     output_path : Path
         The path to the output video.
+    transpose : bool, optional
+        If True, transposes the videos.
     date : str, optional
         The date to add to the video.
     arena : str, optional
         The arena to add to the video.
-    keyword : str, optional
-        The keyword to use to find the input videos.
+    spacing : int, optional
+        The spacing to add between the videos.
     test_mode : bool, optional
-        If True, runs the command in test mode.
+        If True, runs the command in test mode, which limits the output video to 10 seconds.
 
     Returns
     -------
     None
-    """
-    # Specify the path to the font file
-    fontfile = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-    # Check if source is a directory path or a list of file paths
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the ffmpeg command fails.
+    """
+
+    # If source is a directory path, get all .mp4 files from the directory
     if isinstance(source, (str, Path)):
         input_folder = Path(source)
-        # Get all video files from the input folder
-        if keyword:
-            input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
-            # Sort the input files by the number in their name
-            input_files.sort(key=lambda f: int(f.stem.split("_")[1]))
-        else:
-            # If no keyword is provided, sort by numbers in file name
-            input_files = sorted(
-                list(input_folder.glob("*.mp4")),
-                key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
-            )
+        input_files = list(input_folder.glob("*.mp4"))
+        input_files.sort(key=lambda f: int(re.findall(r"\d+", f.stem)[0]))
     else:
-        # If source is a list of file paths, use it directly
-        input_files = source
-
+        # If source is a list or tuple of file paths, use it directly
+        input_files = [f for f in source if f.suffix == ".mp4"]
+        input_files.sort(key=lambda f: int(re.findall(r"\d+", f.stem)[0]))
+        
     print(f"input_files: {input_files}")
 
     # Get the width and height of the first video
-    width, height = get_video_size(input_files[0])
+    width, height = get_video_size(input_files[0].as_posix())
 
     # Calculate the number of videos
     num_videos = len(input_files)
 
-    print(f"num_videos: {num_videos}")
-
     # Create the filter_complex argument for the ffmpeg command
-    if transpose:
-        filter_complex = "".join(
-            f"[{i}:v]transpose=2[s{i}];[s{i}]scale=-1:{width}[v{i}];"
-            + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
-            for i in range(num_videos)
-        )
-    else:
-        filter_complex = "".join(
-            f"[{i}:v]scale=-1:{width}[v{i}];"
-            + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
-            for i in range(num_videos)
-        )
-    hstack_inputs = "".join(f"[v{i}]" for i in range(num_videos))
-    filter_complex += f"{hstack_inputs}hstack=inputs={num_videos}[v]"
+    filter_complex = "".join(
+        f"[{i}:v]{'transpose=2[s{i}];[s{i}]' if transpose else ''}scale=-1:{width}[v{i}];"
+        + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
+        for i in range(num_videos)
+    )
+    filter_complex += f"{''.join(f'[v{i}]' for i in range(num_videos))}hstack=inputs={num_videos}[v]"
 
     # Add padding and label if date and arena are provided
-    if date is not None and arena is not None:
-        filter_complex += f";[v]pad=iw:ih+50:0:50:black,drawtext=fontfile={fontfile}:text='{date} {arena}':fontsize=30:fontcolor=white:x=(w-text_w)/2:y=25[v]"
-
-    print(f"filter_complex : {filter_complex}")
+    if date and arena:
+        filter_complex += f";[v]pad=iw:ih+50:0:50:black,drawtext=fontfile={FONT_FILE}:text='{date} {arena}':fontsize=30:fontcolor=white:x=(w-text_w)/2:y=25[v]"
 
     # Create the ffmpeg command arguments
-    ffmpeg_args = ["ffmpeg", "-y"]
+    ffmpeg_args = [
+        "ffmpeg",
+        "-y",
+        # "-loglevel",
+        # "panic",
+        # "-hwaccel",
+        # "cuda",
+    ]
     for input_file in input_files:
         ffmpeg_args.extend(["-i", str(input_file)])
+        
+    # ffmpeg_args.append("-c:v")
+    # ffmpeg_args.append("h264_nvenc")
+
     if test_mode:
-        ffmpeg_args.append("-t")
-        ffmpeg_args.append("10")
+        ffmpeg_args.extend(["-t", "10"])
     ffmpeg_args.extend(
         ["-filter_complex", filter_complex, "-map", "[v]", str(output_path)]
     )
+
+    # print(ffmpeg_args)
+
     # Run the ffmpeg command
     subprocess.run(ffmpeg_args)
 
 
-def make_bundles(input_folder, output_folder, keyword=None, test_mode=False):
+def make_bundles(input_folder, output_folder, test_mode=False):
+    """
+    Groups videos by date and arena, and creates a horizontal video for each group.
+
+    Parameters
+    ----------
+    input_folder : str or Path
+        The path to the folder containing the input videos.
+    output_folder : str or Path
+        The path to the folder where the output videos will be saved.
+    test_mode : bool, optional
+        If True, runs the command in test mode, which limits the output video to 10 seconds.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the ffmpeg command fails.
+    """
+    
     # Convert input_folder and output_folder to Path objects
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
 
     # Get all video files from the input folder
-    video_files = sorted(input_folder.glob("*.mp4"))
+    video_files = sorted(input_folder.glob(VIDEO_EXT))
 
     # Group the video files by date and arena
-    video_groups = []
-    for key, group in groupby(
-        video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[-3])
-    ):
-        video_groups.append(list(group))
+    video_groups = [
+        list(group) for _, group in groupby(
+            video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[-3])
+        )
+    ]
 
     # Create a horizontal video for each group
     for group in video_groups:
-        date, arena = (
-            group[0].stem.split("_")[0],
-            group[0].stem.split("_")[-3],
-        )  # Get the date and arena from the first video in the group
+        # Get the date and arena from the first video in the group
+        date, arena = group[0].stem.split("_")[0], group[0].stem.split("_")[-3]
 
         # Sort the videos in the group by corridor number
         group.sort(key=lambda f: int(f.stem.split("_")[-2].replace("corridor", "")))
@@ -296,24 +320,41 @@ def make_bundles(input_folder, output_folder, keyword=None, test_mode=False):
             output_path=output_path,
             date=date,
             arena=arena,
-            spacing=None,
             test_mode=test_mode,
             transpose=True,
         )
 
-def assemble_bundles(
-    input_folder, output_path, date=None, arena=None, keyword=None, test_mode=False
-):
-    # Convert input_folder to Path object
-    input_folder = Path(input_folder)
+def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode=False):
+    """
+    Assembles video bundles into a single horizontal video.
 
-    # Get all bundle files from the input folder
+    Parameters
+    ----------
+    input_folder : str or Path
+        The path to the folder containing the input video bundles.
+    output_path : str or Path
+        The path to the output video.
+    date : str, optional
+        The date to add to the video.
+    arena : str, optional
+        The arena to add to the video.
+    test_mode : bool, optional
+        If True, runs the command in test mode, which limits the output video to 10 seconds.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the ffmpeg command fails.
+    """
+
+    # Convert input_folder to Path object and get all bundle files
     bundle_files = sorted(
-        [f for f in input_folder.glob("*bundle*.mp4")],
-        key=lambda f: (
-            f.stem.split("_")[1],
-            f.stem.split("_")[2],
-        ),  # Sort by date and arena
+        [f for f in Path(input_folder).glob(BUNDLE_KEYWORD)],
+        key=lambda f: (f.stem.split("_")[1], f.stem.split("_")[2])  # Sort by date and arena
     )
 
     # Create a horizontal video from the bundles without transposing them
@@ -323,48 +364,77 @@ def assemble_bundles(
         date=date,
         arena=arena,
         spacing=10,
-        keyword=keyword,
         test_mode=test_mode,
         transpose=False,
     )
 
 
-def process_videos(
-    input_folder,
-    output_folder=None,
-    output_path=None,
-    keyword=None,
-    test_mode=False,
-    spacing=10,
-):
-    # Convert input_folder to Path object
+def process_videos(input_folder, output_folder=None, output_path=None, test_mode=False):
+    """
+    Processes videos by making bundles, assembling them into a single video, and then removing the bundles.
+
+    Parameters
+    ----------
+    input_folder : str or Path
+        The path to the folder containing the input videos.
+    output_folder : str or Path, optional
+        The path to the folder where the output videos will be saved. If not provided, uses the input_folder.
+    output_path : str or Path, optional
+        The path to the output video. If not provided, creates a video in the input_folder with the name "{input_folder.stem}_All.mp4".
+    test_mode : bool, optional
+        If True, runs the command in test mode, which limits the output video to 10 seconds.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the ffmpeg command fails.
+    """
+
+    print(f"processing videos in {input_folder}")
+    # Convert input_folder, output_folder, and output_path to Path objects
     input_folder = Path(input_folder)
-
-    # Use input_folder as the default value for output_folder and output_path if they are not provided
-    if output_folder is None:
-        output_folder = input_folder
-    else:
-        output_folder = Path(output_folder)
-
-    if output_path is None:
-        output_path = input_folder / "output.mp4"
-    else:
-        output_path = Path(output_path)
-
-    # Step 1: Make bundles
-    make_bundles(input_folder, output_folder, keyword, test_mode)
-
-    # Step 2: Assemble bundles
-    assemble_bundles(
-        output_folder,
-        output_path,
-        keyword=keyword,
-        test_mode=test_mode,
+    output_folder = Path(output_folder) if output_folder else input_folder
+    output_path = (
+        Path(output_path)
+        if output_path
+        else output_folder / "processed" / f"{input_folder.stem}_All.mp4"
     )
 
+    # Create a Path object for the "processed" directory
+    processed_folder = output_folder / "processed"
+
+    # Check if the "processed" directory exists
+    if processed_folder.exists():
+        print(f"The 'processed' directory already exists in {output_folder}.")
+
+    # Create the "processed" directory
+    processed_folder.mkdir(parents=True, exist_ok=True)
+
+    # Check if the output video file already exists
+    if output_path.exists():
+        print(f"The video file {output_path} already exists.")
+        return
+
+    # Step 1: Make bundles
+    make_bundles(input_folder, output_folder, test_mode=test_mode)
+
+    # Step 2: Assemble bundles
+    assemble_bundles(output_folder, output_path, test_mode=test_mode)
+
     # Step 3: Remove the bundles
-    for bundle_file in output_folder.glob("*bundle*.mp4"):
+    for bundle_file in output_folder.glob(BUNDLE_KEYWORD):
         bundle_file.unlink()
+
+process_videos(
+    input_folder=Path(
+        "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)",
+    ),
+    test_mode=True,
+)
 
 
 # Example usage:
@@ -388,7 +458,11 @@ def process_videos(
 # )
 
 process_videos(
-    input_folder=Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)")
+    input_folder=Path(
+        "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)"
+    ),
+    test_mode=True,
 )
 
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
+# TODO: Implement hardwareacceleration for the ffmpeg command.
