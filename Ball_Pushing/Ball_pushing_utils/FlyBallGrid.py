@@ -170,7 +170,73 @@ def get_video_dimensions(video_path):
     return dimensions["width"], dimensions["height"]
 
 
-def create_horizontal_video(input_folder, output_path, test_mode=False):
+def create_horizontal_video(input_folder, output_path, keyword=None, test_mode=False): 
+
+    """ Creates a horizontal video from the videos in the given input folder.
+    
+    Parameters
+    ----------
+    input_folder : Path
+        The path to the folder containing the input videos.
+    output_path : Path
+        The path to the output video.
+    keyword : str, optional
+        The keyword to use to find the input videos.
+
+    Returns
+    -------
+    None
+    """
+    # Set the input folder path
+    input_folder = Path(input_folder)
+
+    # Get all video files from the input folder
+    if keyword:
+        input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
+        # Sort the input files by the number in their name
+        input_files.sort(key=lambda f: int(f.stem.split("_")[1]))
+    else:
+        # If no keyword is provided, sort by numbers in file name
+        input_files = sorted(
+            list(input_folder.glob("*.mp4")),
+            key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
+        )
+
+    print(f"input_files: {input_files}")
+
+    # Get the width and height of the first video
+    width, height = get_video_size(input_files[0])
+
+    # Calculate the number of videos
+    num_videos = len(input_files)
+
+    print(f"num_videos: {num_videos}")
+
+    # Create the filter_complex argument for the ffmpeg command
+    filter_complex = "".join(
+        f"[{i}:v]transpose=2[s{i}];[s{i}]scale=-1:{width}[v{i}];" for i in range(num_videos)
+    )
+    hstack_inputs = "".join(f"[v{i}]" for i in range(num_videos))
+    filter_complex += f"{hstack_inputs}hstack=inputs={num_videos}[v]"
+    filter_complex += f";[v]pad=ceil(iw/2)*2:ceil(ih/2)*2[v]"
+
+    print(f"filter_complex : {filter_complex}")
+
+    # Create the ffmpeg command arguments
+    ffmpeg_args = ["ffmpeg"]
+    for input_file in input_files:
+        ffmpeg_args.extend(["-i", str(input_file)])
+    if test_mode:
+        ffmpeg_args.append("-t")
+        ffmpeg_args.append("10")
+    ffmpeg_args.extend(
+        ["-filter_complex", filter_complex, "-map", "[v]", str(output_path)]
+    )
+    # Run the ffmpeg command
+    subprocess.run(ffmpeg_args)
+
+
+def Test_bundle(input_folder, output_path, test_mode=False):
     # Step 1: Get all the videos from the input folder
     input_folder = Path(input_folder)
     input_files = list(input_folder.glob("*.mp4"))
@@ -278,7 +344,7 @@ def create_horizontal_video(input_folder, output_path, test_mode=False):
 # Example usage:
 create_horizontal_video(
     input_folder="/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC",
-    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/test_labeled.mp4",
+    output_path="/mnt/labserver/DURRIEU_Matthias/Videos/Genotype_grids/test_short.mp4",
     test_mode=True,
     # keyword="black_clip",
 )
