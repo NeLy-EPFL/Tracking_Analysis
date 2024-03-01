@@ -401,7 +401,7 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
     output_path = (
         Path(output_path)
         if output_path
-        else output_folder / "processed" / f"{input_folder.stem}_All.mp4"
+        else output_folder / "processed" / f"{input_folder.stem}_All_Interactions.mp4"
     )
 
     # Create a Path object for the "processed" directory
@@ -429,13 +429,6 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
     for bundle_file in output_folder.glob(BUNDLE_KEYWORD):
         bundle_file.unlink()
 
-process_videos(
-    input_folder=Path(
-        "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)",
-    ),
-    test_mode=True,
-)
-
 
 # Example usage:
 # create_horizontal_video(
@@ -457,12 +450,21 @@ process_videos(
 #     test_mode=True,
 # )
 
-process_videos(
-    input_folder=Path(
-        "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)"
-    ),
-    test_mode=True,
-)
+# process_videos(
+#     input_folder=Path(
+#         "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)"
+#     ),
+#     test_mode=True,
+# )
 
+# Find all folders in the input folder
+VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine")
+
+Folders = [f for f in VideoFolder.iterdir() if f.is_dir()]
+print(Folders)
+
+# For each folder, process the videos
+for folder in Folders:
+    process_videos(folder)
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 # TODO: Implement hardwareacceleration for the ffmpeg command.
