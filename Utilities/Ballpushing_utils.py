@@ -842,6 +842,7 @@ class Fly:
         omit_events=None,
         plot_signals=False,
         signal_name="",
+        subset=None,
     ):
         """
         This function finds events in a signal derived from the flyball_positions attribute based on certain criteria.
@@ -858,13 +859,16 @@ class Fly:
         list: A list of events found in the signal. Each event is a list containing the start frame, end frame and duration of the event.
         """
 
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Convert the gap between events and the minimum event length from seconds to frames
         gap_between_events = gap_between_events * self.experiment.fps
         event_min_length = event_min_length * self.experiment.fps
 
         distance = (
-            self.flyball_positions.loc[:, "yfly_smooth"]
-            - self.flyball_positions.loc[:, "yball_smooth"]
+            flyball_positions.loc[:, "yfly_smooth"]
+            - flyball_positions.loc[:, "yball_smooth"]
         ).values
 
         # Initialize the list of events
@@ -976,36 +980,53 @@ class Fly:
 
             self.flyball_positions.loc[start:end, "event"] = i
 
-    def get_events_number(self):
+        return self.flyball_positions
+
+    def get_events_number(self, subset=None):
         """
         Returns the number of events found in the flyball_positions DataFrame.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
+
+        Returns:
+            int: The number of events.
         """
 
-        # Return the number of events
-        return len(self.interaction_events)
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
 
-    def get_final_event(self, threshold=10):
+        # Return the number of events
+        return len(interaction_events)
+
+    def get_final_event(self, threshold=10, subset=None):
         """
         Find the event at which the fly pushed the ball to its maximum relative distance from the start of the corridor. It is defined with a threshold so if the ball is very close to the maximum value recorded, it is still detected as the final event.
 
         Args:
             threshold (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+            subset (DataFrame, optional): A subset of the flyball_positions to compute on. Defaults to None.
 
         Returns:
             tuple: A tuple containing the final event (start frame, end frame and duration) and its index in the list of events.
         """
 
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Get the maximum relative distance of the ball from the start of the corridor
-        max_yball_relative = self.flyball_positions["yball_relative"].max()
+        max_yball_relative = flyball_positions["yball_relative"].max()
 
         # Get the event where the maximum relative distance was recorded
         try:
             final_event, final_event_index = next(
                 (event, i)
                 for i, event in enumerate(self.interaction_events)
-                if self.flyball_positions.loc[
-                    event[0] : event[1], "yball_relative"
-                ].max()
+                if flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
                 >= max_yball_relative - threshold
             )
         except StopIteration:
@@ -1015,7 +1036,7 @@ class Fly:
 
         return final_event, final_event_index
 
-    def check_yball_variation(self, event, threshold=10):
+    def check_yball_variation(self, event, threshold=10, subset=None):
         """
         Check if the variation in the 'yball_smooth' value during an event exceeds a given threshold.
 
@@ -1024,95 +1045,121 @@ class Fly:
         Args:
             event (list): A list containing the start and end indices of the event in the 'flyball_positions' DataFrame.
             threshold (int, optional): The minimum variation (in pixels) required for the method to return True. Defaults to 10.
+            subset (DataFrame, optional): A subset of the flyball_positions to compute on. Defaults to None.
 
         Returns:
             bool: True if the variation in 'yball_smooth' during the event exceeds the threshold, False otherwise.
         """
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Get the yball_smooth segment corresponding to an event
-        yball_event = self.flyball_positions.loc[event[0] : event[1], "yball_smooth"]
+        yball_event = flyball_positions.loc[event[0] : event[1], "yball_smooth"]
 
         variation = yball_event.max() - yball_event.min()
 
         return variation > threshold
 
-    def get_significant_events(self, distance=10):
+    def get_significant_events(self, distance=10, subset=None):
         """
         Get the events where the ball was displaced by more that a given distance.
 
         Args:
             distance (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             list: A list of events where the ball was displaced by more than the given distance.
         """
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
+
         # Filter the events based on the check_yball_variation method
         significant_events = [
             event
-            for event in self.interaction_events
+            for event in interaction_events
             if self.check_yball_variation(event, threshold=distance)
         ]
 
         return significant_events
 
-    def find_breaks(self):
+    def find_breaks(self, subset=None):
         """
         Finds the periods where the fly is not interacting with the ball, which are defined as the periods between events.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             list: A list of breaks, where each break is a tuple containing the start and end indices of the break in the 'flyball_positions' DataFrame, and the duration of the break.
         """
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
 
         # Initialize the list of breaks
         breaks = []
 
         # If there are no interaction events, the entire video is a break
-        if not self.interaction_events:
+        if not interaction_events:
             return [(0, len(self.flyball_positions), len(self.flyball_positions))]
 
         # find the break if any between the start of the video and the first event
-        if self.interaction_events[0][0] > 0:
-            breaks.append(
-                (0, self.interaction_events[0][0], self.interaction_events[0][0])
-            )
+        if interaction_events[0][0] > 0:
+            breaks.append((0, interaction_events[0][0], interaction_events[0][0]))
 
         # find the breaks between events
-        for i, event in enumerate(self.interaction_events[:-1]):
+        for i, event in enumerate(interaction_events[:-1]):
             start = event[1]
-            end = self.interaction_events[i + 1][0]
+            end = interaction_events[i + 1][0]
             duration = end - start
             breaks.append((start, end, duration))
 
         # find the break if any between the last event and the end of the video
-        if self.interaction_events[-1][1] < len(self.flyball_positions):
+        if interaction_events[-1][1] < len(self.flyball_positions):
             breaks.append(
                 (
-                    self.interaction_events[-1][1],
+                    interaction_events[-1][1],
                     len(self.flyball_positions),
-                    len(self.flyball_positions) - self.interaction_events[-1][1],
+                    len(self.flyball_positions) - interaction_events[-1][1],
                 )
             )
 
         return breaks
 
-    def get_cumulated_breaks_duration(self):
+    def get_cumulated_breaks_duration(self, subset=None):
         """
         Compute the total duration of the breaks between events.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             int: The total duration of the breaks between events.
         """
-
-        breaks = self.find_breaks()
+        breaks = self.find_breaks(subset=subset)
 
         return sum([break_[2] for break_ in breaks])
 
-    def find_events_direction(self):
+    def find_events_direction(self, subset=None):
         """
         Find the events where the fly pushed or pulled the ball, which are defined as the events where the ball final position during these events is further away or closer to the start of the corridor than the initial position, respectively.
-        """
 
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing lists of pushing events and pulling events.
+        """
         # Get significant events
-        significant_events = self.get_significant_events()
+        significant_events = self.get_significant_events(subset=subset)
 
         if significant_events:
             pushing_events = [
@@ -1730,7 +1777,7 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    def generate_dataset(self, metrics="coordinates"):
+    def generate_dataset(self, metrics="coordinates", success_cutoff=True):
         """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
 
         Args:
@@ -1746,7 +1793,10 @@ class Dataset:
         try:
             if metrics == "coordinates":
                 dataset_list = [
-                    self._prepare_dataset_coordinates(fly) for fly in self.flies
+                    self._prepare_dataset_coordinates(
+                        fly, success_cutoff=success_cutoff
+                    )
+                    for fly in self.flies
                 ]
             elif metrics == "summary":
                 dataset_list = [
@@ -1756,7 +1806,12 @@ class Dataset:
                         else ic(f"Empty DataFrame for fly {fly.directory}")
                     )
                     for fly in self.flies
-                    if (df := self._prepare_dataset_summary_metrics(fly)) is not None
+                    if (
+                        df := self._prepare_dataset_summary_metrics(
+                            fly, success_cutoff=success_cutoff
+                        )
+                    )
+                    is not None
                 ]
 
                 # Debugging step: print out each DataFrame in dataset_list
@@ -1789,7 +1844,7 @@ class Dataset:
 
         return self.data
 
-    def _prepare_dataset_coordinates(self, fly, interactions=True):
+    def _prepare_dataset_coordinates(self, fly, interactions=True, success_cutoff=True):
         """
         Helper function to prepare individual fly dataset with fly and ball coordinates. It also adds the fly name, experiment name and arena metadata as categorical data.
 
@@ -1802,14 +1857,21 @@ class Dataset:
         """
 
         try:
+            if interactions:
+                fly.annotate_events()
+
             dataset = fly.flyball_positions
         # If the fly doesn't have tracking data, don't include it in the dataset
         except AttributeError as e:
             ic(f"Error occurred while preparing dataset for fly {fly.name}: {str(e)}")
             return
 
-        if interactions:
-            fly.annotate_events()
+        if success_cutoff:
+            cutoff_index = (
+                fly.flyball_positions["yball_smooth"] <= fly.end + 40
+            ).idxmax()
+            if cutoff_index != 0:  # idxmax returns 0 if no True value is found
+                positions = fly.flyball_positions[:cutoff_index]
 
         dataset = self._add_metadata(dataset, fly)
 
@@ -1825,10 +1887,12 @@ class Dataset:
             "SignificantEvents",
             "SignificantFirst",
             "SignificantFirstTime",
-            "CumulatedBreaks",
             "Pushes",
             "Pulls",
+            "PushPullRatio",
+            "InteractionProportion",
         ],
+        success_cutoff=True,
     ):
         """
         Helper function to prepare individual fly dataset with summary metrics. Currently, the metrics available are:
@@ -1856,13 +1920,25 @@ class Dataset:
 
         # Store the results of function calls in variables
 
-        final_event = fly.get_final_event()
-        significant_events = fly.get_significant_events()
-        events_direction = fly.find_events_direction()
+        fly.annotate_events()
+        positions = fly.flyball_positions
+
+        # print(positions.head())
+
+        if success_cutoff:
+            cutoff_index = (
+                fly.flyball_positions["yball_smooth"] <= fly.end + 40
+            ).idxmax()
+            if cutoff_index != 0:  # idxmax returns 0 if no True value is found
+                positions = fly.flyball_positions[:cutoff_index]
+
+        final_event = fly.get_final_event(subset=positions)
+        significant_events = fly.get_significant_events(subset=positions)
+        events_direction = fly.find_events_direction(subset=positions)
 
         # Create a dictionary of metric calculation functions
         metric_funcs = {
-            "NumberEvents": lambda: [fly.get_events_number()],
+            "NumberEvents": lambda: [fly.get_events_number(subset=positions)],
             "FinalEvent": lambda: (
                 [final_event[1]] if final_event != (None, None) else [None]
             ),
@@ -1885,22 +1961,20 @@ class Dataset:
                 else [None]
             ),
             "CumulatedBreaks": lambda: [
-                fly.get_cumulated_breaks_duration() / fly.experiment.fps
+                fly.get_cumulated_breaks_duration(subset=positions) / fly.experiment.fps
             ],
             "InteractionProportion": lambda: [
-                (
-                    len(fly.flyball_positions) / fly.experiment.fps
-                    - fly.get_cumulated_breaks_duration()
-                )
-                / (len(fly.flyball_positions) / fly.experiment.fps)
+                (positions["event"].notnull().sum()) / len(positions)
             ],
             "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
             "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
             "PushPullRatio": lambda: [
                 (
-                    len(events_direction[0]) / len(events_direction[1])
-                    if events_direction and len(events_direction[1]) != 0
-                    else None
+                    (len(events_direction[0]) - len(events_direction[1]))
+                    / (len(events_direction[0]) + len(events_direction[1]))
+                    if events_direction
+                    and (len(events_direction[0]) != 0 or len(events_direction[1]) != 0)
+                    else float("nan")
                 )
             ],
         }
@@ -1908,10 +1982,15 @@ class Dataset:
         # Initialize an empty dictionary
         data = {}
 
-        # Add the metrics for each fly
-        for metric in metrics:
-            if metric in metric_funcs:
-                data[metric] = metric_funcs[metric]()
+        # Compute all metrics
+        computed_metrics = {metric: func() for metric, func in metric_funcs.items()}
+
+        # Add only the selected metrics to the data dictionary
+        data = {
+            metric: computed_metrics[metric]
+            for metric in metrics
+            if metric in computed_metrics
+        }
 
         # Convert the dictionary to a DataFrame
         dataset = pd.DataFrame(data)
