@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 import itertools
 from operator import itemgetter
+from icecream import ic
 
 import holoviews as hv
 from bokeh.models import HoverTool
@@ -99,7 +100,7 @@ def load_object(filename):
 #     Dataset_list = []
 
 #     for folder in Folders:
-#         print(f"Processing {folder}...")
+#         ic(f"Processing {folder}...")
 #         # Read the metadata.json file
 #         with open(folder / "Metadata.json", "r") as f:
 #             metadata = json.load(f)
@@ -118,15 +119,15 @@ def load_object(filename):
 #                 metadata_dict[var] = {
 #                     k.lower(): v for k, v in metadata_dict[var].items()
 #                 }
-#             # print(metadata_dict)
+#             # ic(metadata_dict)
 
 #             files = list(folder.glob("**/*.mp4"))
 
 #         for file in files:
-#             # print(file.name)
+#             # ic(file.name)
 #             # Get the arena and corridor numbers from the parent (corridor) and grandparent (arena) folder names
 #             arena = file.parent.parent.name
-#             # print(arena)
+#             # ic(arena)
 #             corridor = file.parent.name
 
 #             start, end = np.load(file.parent / "coordinates.npy")
@@ -136,18 +137,18 @@ def load_object(filename):
 #             # Define flypath as the *tracked_fly*.analysis.h5 file in the same folder as the video
 #             try:
 #                 flypath = list(dir.glob("*tracked_fly*.analysis.h5"))[0]
-#                 # print(flypath.name)
+#                 # ic(flypath.name)
 #             except IndexError:
-#                 # print(f"No fly tracking file found for {file.name}, skipping...")
+#                 # ic(f"No fly tracking file found for {file.name}, skipping...")
 
 #                 continue
 
 #             # Define ballpath as the *tracked*.analysis.h5 file in the same folder as the video
 #             try:
 #                 ballpath = list(dir.glob("*tracked*.analysis.h5"))[0]
-#                 # print(ballpath.name)
+#                 # ic(ballpath.name)
 #             except IndexError:
-#                 print(f"No ball tracking file found for {file.name}, skipping...")
+#                 ic(f"No ball tracking file found for {file.name}, skipping...")
 
 #                 continue
 
@@ -158,7 +159,7 @@ def load_object(filename):
 #                     ballpath, flypath, ball=ball, fly=fly, xvals=xvals
 #                 )
 
-#                 # print(data.head())
+#                 # ic(data.head())
 #                 # Apply savgol_lowpass_filter to each column that is not Frame or time
 #                 # for col in data.columns:
 #                 #     if col not in ["Frame", "time"]:
@@ -172,7 +173,7 @@ def load_object(filename):
 #                 data["Fly"] = f"Fly {Flycount}"
 
 #                 if "Flipped" in folder.name:
-#                     # print(
+#                     # ic(
 #                     #     f"Flipped video, flipping ball and fly y coordinates, flipping start and end."
 #                     # )
 #                     data["yball_smooth"] = -data["yball_smooth"]
@@ -210,8 +211,8 @@ def load_object(filename):
 #             except Exception as e:
 #                 error_message = str(e)
 #                 traceback_message = traceback.format_exc()
-#                 # print(f"Error processing video {vidname}: {error_message}")
-#                 print(traceback_message)
+#                 # ic(f"Error processing video {vidname}: {error_message}")
+#                 ic(traceback_message)
 
 #     # Concatenate all dataframes in the list into a single dataframe
 #     Dataset = pd.concat(Dataset_list, ignore_index=True).reset_index()
@@ -292,13 +293,13 @@ def load_object(filename):
 
 # def extract_interaction_events(source, Thresh=80, min_time=60, as_df=False):
 #     if isinstance(source, Path):
-#         print(f"Path: {source}")
+#         ic(f"Path: {source}")
 #         flypath = next(source.glob("*tracked_fly*.analysis.h5"))
 #         ballpath = next(source.glob("*tracked*.analysis.h5"))
 #         df = get_coordinates(flypath=flypath, ballpath=ballpath)
 
 #     elif isinstance(source, pd.DataFrame):
-#         print(f"DataFrame: {source.shape}")
+#         ic(f"DataFrame: {source.shape}")
 #         df = source
 
 #     else:
@@ -377,15 +378,15 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     """
 
     if isinstance(source, Path):
-        print(f"Path: {source}")
+        ic(f"Path: {source}")
         df = get_coordinates(flypath=source, ball=False, xvals=True)
 
     elif isinstance(source, str):
-        print(f"String: {source}")
+        ic(f"String: {source}")
         df = get_coordinates(flypath=source, ball=False, xvals=True)
 
     elif isinstance(source, pd.DataFrame):
-        print(f"DataFrame: {source.shape}")
+        ic(f"DataFrame: {source.shape}")
         df = source
     else:
         raise TypeError(
@@ -421,12 +422,9 @@ def extract_pauses(source, min_time=200, threshold_y=0.05, threshold_x=0.05):
     pause_groups["last"] = pd.to_datetime(pause_groups["last"], unit="s").dt.time
 
     # Print the pause events
-    print(pause_groups)
+    ic(pause_groups)
 
     return pause_events
-
-
-# TODO: implement icecream
 
 
 def filter_experiments(source, **criteria):
@@ -468,7 +466,10 @@ def filter_experiments(source, **criteria):
                     flies.append(fly)
 
     return flies
+
+
 # Pixel size: 30 mm = 500 pixels, 4 mm = 70 pixels, 1.5 mm = 25 pixels
+
 
 # TODO : Test the dead_or_empty function in conditions where I know the fly is dead or the arena is empty or not to check success
 class Fly:
@@ -524,8 +525,10 @@ class Fly:
                 genotype = self.arena_metadata["Genotype"]
 
                 # If the genotype is None, skip the fly
-                if genotype is None:
-                    raise KeyError(f"Genotype is None: {self.name} is empty.")
+                if genotype.lower() == "none":
+                    ic(f"Genotype is None: {self.name} is empty.")
+                    self.dead_or_empty = True
+                    return
 
                 # Convert to lowercase for comparison
                 lowercase_index = brain_regions.index.str.lower()
@@ -536,7 +539,7 @@ class Fly:
                     "Simplified region"
                 ]
             except KeyError:
-                print(
+                ic(
                     f"Genotype {genotype} not found in brain regions table for {self.name}. Defaulting to PR"
                 )
                 self.nickname = "PR"
@@ -549,23 +552,23 @@ class Fly:
 
         try:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
-            # print(flypath.name)
+            # ic(flypath.name)
         except IndexError:
             self.flytrack = None
-            # print(f"No fly tracking file found for {self.name}, skipping...")
+            # ic(f"No fly tracking file found for {self.name}, skipping...")
 
         try:
             self.balltrack = list(directory.glob("*tracked_ball*.analysis.h5"))[0]
-            # print(ballpath.name)
+            # ic(ballpath.name)
         except IndexError:
             self.balltrack = None
-            # print(f"No ball tracking file found for {self.name}, skipping...")
+            # ic(f"No ball tracking file found for {self.name}, skipping...")
 
         # Check if the coordinates.npy file exists in the fly directory
 
         if not (self.directory / "coordinates.npy").exists():
             # Run the detect_boundaries function on the Fly associated experiment to generate the coordinates.npy file for all flies in the experiment
-            print(
+            ic(
                 f"No boundaries found. Generating coordinates.npy file for {self.experiment.directory}..."
             )
             self.detect_boundaries()
@@ -636,10 +639,10 @@ class Fly:
 
         # If there's a peak, the arena is not empty
         if np.any(crop_bin > 0):
-            # print(f"{arena}/{self.video.name} is not empty")
+            # ic(f"{arena}/{self.video.name} is not empty")
             return False
         else:
-            print(f"{self.name} is empty")
+            ic(f"{self.name} is empty")
             return True
 
     def check_dead(self):
@@ -665,10 +668,10 @@ class Fly:
             )
             > 30
         ):
-            # print(f"{self.name} is alive")
+            # ic(f"{self.name} is alive")
             return False
         else:
-            print(f"{self.name} is dead or in poor condition")
+            ic(f"{self.name} is dead or in poor condition")
             return True
 
     def get_arena_metadata(self):
@@ -700,7 +703,7 @@ class Fly:
         """
         # Print the metadata for this fly's arena
         for var, data in self.arena_metadata.items():
-            print(f"{var}: {data}")
+            ic(f"{var}: {data}")
 
     def detect_boundaries(self, threshold=100):
         """Detects the start and end of the corridor in the video. This is later used to compute the relative distance of the fly from the start of the corridor.
@@ -716,7 +719,7 @@ class Fly:
         video_file = self.video
 
         if not video_file.exists():
-            print(f"Error: Video file {video_file} does not exist")
+            ic(f"Error: Video file {video_file} does not exist")
             return None, None
 
         # open the first frame of the video
@@ -725,10 +728,10 @@ class Fly:
         cap.release()
 
         if not ret:
-            print(f"Error: Could not read frame from video {video_file}")
+            ic(f"Error: Could not read frame from video {video_file}")
             return None, None
         elif frame is None:
-            print(f"Error: Frame is None for video {video_file}")
+            ic(f"Error: Frame is None for video {video_file}")
             return None, None
 
         # Convert to grayscale
@@ -839,6 +842,7 @@ class Fly:
         omit_events=None,
         plot_signals=False,
         signal_name="",
+        subset=None,
     ):
         """
         This function finds events in a signal derived from the flyball_positions attribute based on certain criteria.
@@ -855,13 +859,16 @@ class Fly:
         list: A list of events found in the signal. Each event is a list containing the start frame, end frame and duration of the event.
         """
 
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Convert the gap between events and the minimum event length from seconds to frames
         gap_between_events = gap_between_events * self.experiment.fps
         event_min_length = event_min_length * self.experiment.fps
 
         distance = (
-            self.flyball_positions.loc[:, "yfly_smooth"]
-            - self.flyball_positions.loc[:, "yball_smooth"]
+            flyball_positions.loc[:, "yfly_smooth"]
+            - flyball_positions.loc[:, "yball_smooth"]
         ).values
 
         # Initialize the list of events
@@ -875,7 +882,7 @@ class Fly:
         # If no frames are found within the limit values, return an empty list
         if len(all_frames_above_lim) == 0:
             if plot_signals:
-                print(f"Any point is between {thresh[0]} and {thresh[1]}")
+                ic(f"Any point is between {thresh[0]} and {thresh[1]}")
                 plt.plot(signal, label=f"{signal_name}-filtered")
                 plt.legend()
                 plt.show()
@@ -894,7 +901,7 @@ class Fly:
         # Plot the signal if required
         if plot_signals:
             limit_value = thresh[0] if thresh[1] == np.inf else thresh[1]
-            print(all_frames_above_lim[split_points])
+            ic(all_frames_above_lim[split_points])
             plt.plot(signal, label=f"{signal_name}-filtered")
 
         # Iterate over the split points to find events
@@ -941,7 +948,7 @@ class Fly:
             if duration > event_min_length and signal_within_limits > 0.75:
                 events.append([start_roi, end_roi, duration])
                 if plot_signals:
-                    print(
+                    ic(
                         start_roi,
                         end_roi,
                         duration,
@@ -973,46 +980,63 @@ class Fly:
 
             self.flyball_positions.loc[start:end, "event"] = i
 
-    def get_events_number(self):
+        return self.flyball_positions
+
+    def get_events_number(self, subset=None):
         """
         Returns the number of events found in the flyball_positions DataFrame.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
+
+        Returns:
+            int: The number of events.
         """
 
-        # Return the number of events
-        return len(self.interaction_events)
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
 
-    def get_final_event(self, threshold=10):
+        # Return the number of events
+        return len(interaction_events)
+
+    def get_final_event(self, threshold=10, subset=None):
         """
         Find the event at which the fly pushed the ball to its maximum relative distance from the start of the corridor. It is defined with a threshold so if the ball is very close to the maximum value recorded, it is still detected as the final event.
 
         Args:
             threshold (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+            subset (DataFrame, optional): A subset of the flyball_positions to compute on. Defaults to None.
 
         Returns:
             tuple: A tuple containing the final event (start frame, end frame and duration) and its index in the list of events.
         """
 
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Get the maximum relative distance of the ball from the start of the corridor
-        max_yball_relative = self.flyball_positions["yball_relative"].max()
+        max_yball_relative = flyball_positions["yball_relative"].max()
 
         # Get the event where the maximum relative distance was recorded
         try:
             final_event, final_event_index = next(
                 (event, i)
                 for i, event in enumerate(self.interaction_events)
-                if self.flyball_positions.loc[
-                    event[0] : event[1], "yball_relative"
-                ].max()
+                if flyball_positions.loc[event[0] : event[1], "yball_relative"].max()
                 >= max_yball_relative - threshold
             )
         except StopIteration:
-            print(f"No final event found for {self.name}")
+            # ic(f"No final event found for {self.name}")
             # Return None or NaN when no final event is found
             final_event, final_event_index = None, None
 
         return final_event, final_event_index
 
-    def check_yball_variation(self, event, threshold=10):
+    def check_yball_variation(self, event, threshold=10, subset=None):
         """
         Check if the variation in the 'yball_smooth' value during an event exceeds a given threshold.
 
@@ -1021,95 +1045,121 @@ class Fly:
         Args:
             event (list): A list containing the start and end indices of the event in the 'flyball_positions' DataFrame.
             threshold (int, optional): The minimum variation (in pixels) required for the method to return True. Defaults to 10.
+            subset (DataFrame, optional): A subset of the flyball_positions to compute on. Defaults to None.
 
         Returns:
             bool: True if the variation in 'yball_smooth' during the event exceeds the threshold, False otherwise.
         """
+        # Use the provided subset if it exists, otherwise use the full flyball_positions
+        flyball_positions = subset if subset is not None else self.flyball_positions
+
         # Get the yball_smooth segment corresponding to an event
-        yball_event = self.flyball_positions.loc[event[0] : event[1], "yball_smooth"]
+        yball_event = flyball_positions.loc[event[0] : event[1], "yball_smooth"]
 
         variation = yball_event.max() - yball_event.min()
 
         return variation > threshold
 
-    def get_significant_events(self, distance=10):
+    def get_significant_events(self, distance=10, subset=None):
         """
         Get the events where the ball was displaced by more that a given distance.
 
         Args:
             distance (int, optional): The minimum distance (in pixels) required for the method to return True. Defaults to 10.
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             list: A list of events where the ball was displaced by more than the given distance.
         """
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
+
         # Filter the events based on the check_yball_variation method
         significant_events = [
             event
-            for event in self.interaction_events
+            for event in interaction_events
             if self.check_yball_variation(event, threshold=distance)
         ]
 
         return significant_events
 
-    def find_breaks(self):
+    def find_breaks(self, subset=None):
         """
         Finds the periods where the fly is not interacting with the ball, which are defined as the periods between events.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             list: A list of breaks, where each break is a tuple containing the start and end indices of the break in the 'flyball_positions' DataFrame, and the duration of the break.
         """
+        # Use the provided subset if it exists, otherwise use the full interaction_events
+        interaction_events = (
+            self.find_interaction_events(subset=subset)
+            if subset is not None
+            else self.interaction_events
+        )
 
         # Initialize the list of breaks
         breaks = []
 
         # If there are no interaction events, the entire video is a break
-        if not self.interaction_events:
+        if not interaction_events:
             return [(0, len(self.flyball_positions), len(self.flyball_positions))]
 
         # find the break if any between the start of the video and the first event
-        if self.interaction_events[0][0] > 0:
-            breaks.append(
-                (0, self.interaction_events[0][0], self.interaction_events[0][0])
-            )
+        if interaction_events[0][0] > 0:
+            breaks.append((0, interaction_events[0][0], interaction_events[0][0]))
 
         # find the breaks between events
-        for i, event in enumerate(self.interaction_events[:-1]):
+        for i, event in enumerate(interaction_events[:-1]):
             start = event[1]
-            end = self.interaction_events[i + 1][0]
+            end = interaction_events[i + 1][0]
             duration = end - start
             breaks.append((start, end, duration))
 
         # find the break if any between the last event and the end of the video
-        if self.interaction_events[-1][1] < len(self.flyball_positions):
+        if interaction_events[-1][1] < len(self.flyball_positions):
             breaks.append(
                 (
-                    self.interaction_events[-1][1],
+                    interaction_events[-1][1],
                     len(self.flyball_positions),
-                    len(self.flyball_positions) - self.interaction_events[-1][1],
+                    len(self.flyball_positions) - interaction_events[-1][1],
                 )
             )
 
         return breaks
 
-    def get_cumulated_breaks_duration(self):
+    def get_cumulated_breaks_duration(self, subset=None):
         """
         Compute the total duration of the breaks between events.
+
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
 
         Returns:
             int: The total duration of the breaks between events.
         """
-
-        breaks = self.find_breaks()
+        breaks = self.find_breaks(subset=subset)
 
         return sum([break_[2] for break_ in breaks])
 
-    def find_events_direction(self):
+    def find_events_direction(self, subset=None):
         """
         Find the events where the fly pushed or pulled the ball, which are defined as the events where the ball final position during these events is further away or closer to the start of the corridor than the initial position, respectively.
-        """
 
+        Args:
+            subset (list, optional): A subset of the interaction_events to compute on. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing lists of pushing events and pulling events.
+        """
         # Get significant events
-        significant_events = self.get_significant_events()
+        significant_events = self.get_significant_events(subset=subset)
 
         if significant_events:
             pushing_events = [
@@ -1293,7 +1343,7 @@ class Fly:
         """
 
         if self.flyball_positions is None:
-            print(f"No tracking data available for {self.name}. Skipping...")
+            ic(f"No tracking data available for {self.name}. Skipping...")
             return
 
         if outpath is None:
@@ -1314,7 +1364,7 @@ class Fly:
         self.concatenate_clips(clips, outpath, fps, width, height, vidname)
         for clip_path in clips:
             os.remove(clip_path)
-        print(f"Finished processing {vidname}!")
+        ic(f"Finished processing {vidname}!")
 
     def draw_circles(self, frame, flyball_coordinates):
         """
@@ -1397,7 +1447,7 @@ class Fly:
 
         # If saving, write the new video clip to a file
         if save:
-            print(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
+            ic(f"Saving {self.video.name} at {speed}x speed in {output_path.parent}")
             sped_up_clip.write_videofile(
                 str(output_path), fps=clip.fps
             )  # Save the sped-up clip
@@ -1416,7 +1466,7 @@ class Fly:
             # Set the title of the Pygame window
             pygame.display.set_caption(f"Preview (speed = x{speed})")
 
-            print(f"Previewing {self.video.name} at {speed}x speed")
+            ic(f"Previewing {self.video.name} at {speed}x speed")
 
             sped_up_clip.preview(fps=self.experiment.fps * speed)
 
@@ -1427,7 +1477,7 @@ class Fly:
         clip.close()
 
         if not save and not preview:
-            print("No action specified. Set save or preview argument to True.")
+            ic("No action specified. Set save or preview argument to True.")
 
 
 class Experiment:
@@ -1489,7 +1539,7 @@ class Experiment:
                 metadata_dict[var] = {
                     k.lower(): v for k, v in metadata_dict[var].items()
                 }
-            # print(metadata_dict)
+            # ic(metadata_dict)
             return metadata_dict
 
     def load_fps(self):
@@ -1506,7 +1556,7 @@ class Experiment:
 
         else:
             fps = 30
-            print(
+            ic(
                 f"Warning: fps.npy file not found in {self.directory}; Defaulting to 30 fps."
             )
 
@@ -1539,7 +1589,7 @@ class Experiment:
                 fly = Fly(mp4_file.parent, experiment=self)
                 flies.append(fly)
             except TypeError as e:
-                print(f"Error while loading fly from {mp4_file.parent}: {e}")
+                ic(f"Error while loading fly from {mp4_file.parent}: {e}")
 
         return flies
 
@@ -1566,10 +1616,10 @@ class Experiment:
     def generate_grid(self, preview=False, overwrite=False):
         # Check if the grid image already exists
         if (self.directory / "grid.png").exists() and not overwrite:
-            print(f"Grid image already exists for {self.directory.name}")
+            ic(f"Grid image already exists for {self.directory.name}")
             return
         else:
-            print(f"Generating grid image for {self.directory.name}")
+            ic(f"Generating grid image for {self.directory.name}")
 
             frames = []
             min_rows = []
@@ -1600,7 +1650,7 @@ class Experiment:
                 try:
                     axs[row, col].imshow(frame, cmap="gray", vmin=0, vmax=255)
                 except:
-                    print(f"Error: Could not plot frame {i} for video {flypath}")
+                    ic(f"Error: Could not plot frame {i} for video {flypath}")
                     # go to the next folder
                     continue
 
@@ -1641,7 +1691,7 @@ class Dataset:
         # Define the experiments and flies attributes
         if isinstance(source, list):
             # If the source is a list, check if it contains Experiment or Fly objects, otherwise raise an error
-            if isinstance(source[0], Experiment):
+            if type(source[0]).__name__ == "Experiment":
                 # If the source contains Experiment objects, generate a dataset from the experiments
                 self.experiments = source
 
@@ -1649,7 +1699,7 @@ class Dataset:
                     fly for experiment in self.experiments for fly in experiment.flies
                 ]
 
-            elif isinstance(source[0], Fly):
+            elif type(source[0]).__name__ == "Fly":
                 # make a list of distinct experiments associated with the flies
                 self.experiments = list(set([fly.experiment for fly in source]))
 
@@ -1660,13 +1710,13 @@ class Dataset:
                     "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
                 )
 
-        elif isinstance(source, Experiment):
+        elif type(source).__name__ == "Experiment":
             # If the source is an Experiment object, generate a dataset from the experiment
             self.experiments = [source]
 
             self.flies = source.flies
 
-        elif isinstance(source, Fly):
+        elif type(source).__name__ == "Fly":
             # If the source is a Fly object, generate a dataset from the fly
             self.experiments = [source.experiment]
 
@@ -1676,7 +1726,11 @@ class Dataset:
                 "Invalid source format: source must be a (list of) Experiment objects or a list of Fly objects"
             )
 
-        self.flies = [fly for fly in self.flies if fly.flyball_positions is not None]
+        self.flies = [
+            fly
+            for fly in self.flies
+            if hasattr(fly, "flyball_positions") and fly.flyball_positions is not None
+        ]
         self.flies = [fly for fly in self.flies if not fly.dead_or_empty]
 
         self.brain_regions_path = brain_regions_path
@@ -1723,7 +1777,7 @@ class Dataset:
         elif isinstance(self.source, Fly):
             return f"Dataset({self.flies[0].directory})"
 
-    def generate_dataset(self, metrics="coordinates"):
+    def generate_dataset(self, metrics="coordinates", success_cutoff=True):
         """Generates a pandas DataFrame from a list of Experiment objects. The dataframe contains the smoothed fly and ball positions for each experiment.
 
         Args:
@@ -1739,20 +1793,30 @@ class Dataset:
         try:
             if metrics == "coordinates":
                 dataset_list = [
-                    self._prepare_dataset_coordinates(fly) for fly in self.flies
+                    self._prepare_dataset_coordinates(
+                        fly, success_cutoff=success_cutoff
+                    )
+                    for fly in self.flies
                 ]
             elif metrics == "summary":
                 dataset_list = [
-                    df
-                    if not df.empty
-                    else print(f"Empty DataFrame for fly {fly.directory}")
+                    (
+                        df
+                        if not df.empty
+                        else ic(f"Empty DataFrame for fly {fly.directory}")
+                    )
                     for fly in self.flies
-                    if (df := self._prepare_dataset_summary_metrics(fly)) is not None
+                    if (
+                        df := self._prepare_dataset_summary_metrics(
+                            fly, success_cutoff=success_cutoff
+                        )
+                    )
+                    is not None
                 ]
 
                 # Debugging step: print out each DataFrame in dataset_list
-                for df in dataset_list:
-                    print(df)
+                # for df in dataset_list:
+                #     ic(df)
 
             if dataset_list:  # Only concatenate if the list is not empty
                 self.data = pd.concat(dataset_list, ignore_index=True).reset_index(
@@ -1771,7 +1835,7 @@ class Dataset:
                 + ")"
             )
 
-            print(self.data.head())
+            # ic(self.data.head())
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -1780,7 +1844,7 @@ class Dataset:
 
         return self.data
 
-    def _prepare_dataset_coordinates(self, fly, interactions=True):
+    def _prepare_dataset_coordinates(self, fly, interactions=True, success_cutoff=True):
         """
         Helper function to prepare individual fly dataset with fly and ball coordinates. It also adds the fly name, experiment name and arena metadata as categorical data.
 
@@ -1792,10 +1856,22 @@ class Dataset:
             pandas.DataFrame: A DataFrame containing the fly's coordinates and associated metadata.
         """
 
-        dataset = fly.flyball_positions
+        try:
+            if interactions:
+                fly.annotate_events()
 
-        if interactions:
-            fly.annotate_events()
+            dataset = fly.flyball_positions
+        # If the fly doesn't have tracking data, don't include it in the dataset
+        except AttributeError as e:
+            ic(f"Error occurred while preparing dataset for fly {fly.name}: {str(e)}")
+            return
+
+        if success_cutoff:
+            cutoff_index = (
+                fly.flyball_positions["yball_smooth"] <= fly.end + 40
+            ).idxmax()
+            if cutoff_index != 0:  # idxmax returns 0 if no True value is found
+                positions = fly.flyball_positions[:cutoff_index]
 
         dataset = self._add_metadata(dataset, fly)
 
@@ -1811,77 +1887,137 @@ class Dataset:
             "SignificantEvents",
             "SignificantFirst",
             "SignificantFirstTime",
-            "CumulatedBreaks",
             "Pushes",
             "Pulls",
+            "PushPullRatio",
+            "InteractionProportion",
+            "AhaMoment",
+            "AhaMomentIndex",
+            "SignificantRatio",
         ],
+        success_cutoff=True,
     ):
         """
-        Helper function to prepare individual fly dataset with summary metrics. Currently, the metrics available are:
+        Prepares a dataset with summary metrics for a given fly. The metrics are computed for all events, but only the ones specified in the 'metrics' argument are included in the returned DataFrame.
+
+        Available metrics:
         - NumberEvents: The number of events found in the flyball_positions DataFrame.
         - FinalEvent: The event at which the fly pushed the ball to its maximum relative distance from the start of the corridor.
         - FinalTime: The time at which the final event occurred.
-        - SignificantEvents: The number of events where the ball was displaced by more that a given distance.
+        - SignificantEvents: The number of events where the ball was displaced by more than a given distance (this distance is set in check_yball_variation function and its default value is 10px).
+        - SignificantRatio: The ratio of significant events to the total number of events.
+        - AhaMoment: The first event at which the fly pushed the ball to at least a distance of 125px from the start of the corridor.
         - SignificantFirst: The index of the first significant event.
         - SignificantFirstTime: The time at which the first significant event occurred.
         - CumulatedBreaks: The total duration of the breaks between events.
         - Pushes: The number of events where the fly pushed the ball.
         - Pulls: The number of events where the fly pulled the ball.
+        - PushPullRatio: The ratio of the number of push events to the total number of significant events.
+        - InteractionProportion: The proportion of the video or subset during which the fly was interacting with the ball.
 
         Args:
             fly (Fly): A Fly object.
             metrics (list): A list of metrics to include in the dataset. The metrics require valid ball and fly tracking data.
+            success_cutoff (bool): If True, only events before the ball reaches the end of the corridor are considered.
 
         Returns:
             pandas.DataFrame: A DataFrame containing the fly's summary metrics and associated metadata.
 
         """
-
         # TODO: Implement events duration
         # TODO: Implement some metric about whether the fly brought the ball close enought to the end of the corridor
 
         # Store the results of function calls in variables
 
-        final_event = fly.get_final_event()
-        significant_events = fly.get_significant_events()
-        events_direction = fly.find_events_direction()
+        fly.annotate_events()
+        positions = fly.flyball_positions
+
+        # print(positions.head())
+
+        if success_cutoff:
+            cutoff_index = (
+                fly.flyball_positions["yball_smooth"] <= fly.end + 40
+            ).idxmax()
+            if cutoff_index != 0:  # idxmax returns 0 if no True value is found
+                positions = fly.flyball_positions[:cutoff_index]
+
+        final_event = fly.get_final_event(subset=positions)
+        significant_events = fly.get_significant_events(subset=positions)
+        events_direction = fly.find_events_direction(subset=positions)
+        aha_moment = fly.get_significant_events(distance=125, subset=positions)
 
         # Create a dictionary of metric calculation functions
         metric_funcs = {
-            "NumberEvents": lambda: [fly.get_events_number()],
-            "FinalEvent": lambda: [final_event[1]]
-            if final_event != (None, None)
-            else [None],
-            "FinalTime": lambda: [final_event[0][2] / fly.experiment.fps]
-            if final_event != (None, None)
-            else [None],
-            "SignificantEvents": lambda: [len(significant_events)]
-            if significant_events
-            else [0],
-            "SignificantFirst": lambda: [
-                fly.interaction_events.index(significant_events[0])
-            ]
-            if significant_events
-            else [None],
-            "SignificantFirstTime": lambda: [
-                significant_events[0][0] / fly.experiment.fps
-            ]
-            if significant_events
-            else [None],
+            "NumberEvents": lambda: [fly.get_events_number(subset=positions)],
+            "FinalEvent": lambda: (
+                [final_event[1]] if final_event != (None, None) else [None]
+            ),
+            "FinalTime": lambda: (
+                [final_event[0][2] / fly.experiment.fps]
+                if final_event != (None, None)
+                else [None]
+            ),
+            "SignificantEvents": lambda: (
+                [len(significant_events)] if significant_events else [0]
+            ),
+            "SignificantRatio": lambda: (
+                [len(significant_events) / fly.get_events_number(subset=positions)]
+                if significant_events
+                else [0]
+            ),
+            "AhaMoment": lambda: (
+                [aha_moment[0][0] / fly.experiment.fps] if aha_moment else [None]
+            ),
+            "AhaMomentIndex": lambda: (
+                [fly.find_interaction_events(subset=positions).index(aha_moment[0])]
+                if aha_moment
+                else [None]
+            ),
+            "SignificantFirst": lambda: (
+                [
+                    fly.find_interaction_events(subset=positions).index(
+                        significant_events[0]
+                    )
+                ]
+                if significant_events
+                else [None]
+            ),
+            "SignificantFirstTime": lambda: (
+                [significant_events[0][0] / fly.experiment.fps]
+                if significant_events
+                else [None]
+            ),
             "CumulatedBreaks": lambda: [
-                fly.get_cumulated_breaks_duration() / fly.experiment.fps
+                fly.get_cumulated_breaks_duration(subset=positions) / fly.experiment.fps
+            ],
+            "InteractionProportion": lambda: [
+                (positions["event"].notnull().sum()) / len(positions)
             ],
             "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
             "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
+            "PushPullRatio": lambda: [
+                (
+                    (len(events_direction[0]) - len(events_direction[1]))
+                    / (len(events_direction[0]) + len(events_direction[1]))
+                    if events_direction
+                    and (len(events_direction[0]) != 0 or len(events_direction[1]) != 0)
+                    else float("nan")
+                )
+            ],
         }
 
         # Initialize an empty dictionary
         data = {}
 
-        # Add the metrics for each fly
-        for metric in metrics:
-            if metric in metric_funcs:
-                data[metric] = metric_funcs[metric]()
+        # Compute all metrics
+        computed_metrics = {metric: func() for metric, func in metric_funcs.items()}
+
+        # Add only the selected metrics to the data dictionary
+        data = {
+            metric: computed_metrics[metric]
+            for metric in metrics
+            if metric in computed_metrics
+        }
 
         # Convert the dictionary to a DataFrame
         dataset = pd.DataFrame(data)
@@ -1937,8 +2073,8 @@ class Dataset:
                     self.metadata.append(var)
 
         except Exception as e:
-            print(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
-            print(f"Current dataset:\n{dataset}")
+            ic(f"Error occurred while adding metadata for fly {fly.name}: {str(e)}")
+            ic(f"Current dataset:\n{dataset}")
 
         return dataset
 
@@ -1994,8 +2130,8 @@ class Dataset:
             GroupedData, SampleSize, on=["Nickname", "Simplified region"]
         )
 
-        # Modify Nickname column
-        GroupedData["Nickname"] = (
+        # Make a new column with the nickname and the sample size
+        GroupedData["label"] = (
             GroupedData["Nickname"]
             + " (n = "
             + GroupedData["SampleSize"].astype(str)
@@ -2009,144 +2145,3 @@ class Dataset:
         GroupedData.reset_index(inplace=True)
 
         # TODO: Add handling when there's no simplified region, to get the simpler version of the data
-
-    def compute_bs_ci(
-        self, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
-    ):
-        """
-        Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument.
-
-        Args:
-            metric (str): The metric to compute the confidence interval for.
-            genotypes (list): A list of control genotypes.
-
-        Returns:
-            np.ndarray: The lower and upper confidence interval bounds.
-        """
-
-        # Filter the dataset for flies with control genotypes
-        control_data = self.data[self.data["Genotype"].isin(genotypes)]
-
-        # Check if there are any control flies in the dataset
-        if control_data.empty:
-            print("No flies with control genotypes found in the dataset.")
-            return None
-
-        # Drop rows with NaN values in the metric column
-        control_data = control_data.dropna(subset=[metric])
-
-        # Compute the bootstrap confidence interval for the given metric
-        ci = draw_bs_ci(control_data[metric].values)
-
-        return ci
-
-    def jitter_boxplot(
-        self, data, vdim, plot_options=hv_main, show=True, save=False, outpath=None
-    ):
-        """
-        Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
-        The plot includes a bootstrap confidence interval for the control genotypes that is displayed as a shaded area behind the boxplot.
-
-        Args:
-            data (pandas DataFrame): The dataset to plot.
-            vdim (str): The metric to plot. It should be a column in the dataset.
-            plot_options (dict, optional): A dictionary containing the plot options. Defaults to hv_main which is MD's base template for holoviews plots found in Holoviews_Templates.py.
-            show (bool, optional): Whether to display the plot (Currently only tested on Jupyter notebooks). Defaults to True.
-            save (bool, optional): Whether to save the plot as an html file. Defaults to False.
-            outpath (str, optional): The path where to save the plot. Defaults to None. If None is provided, the plot is saved in a generic location with a timestamp and information on the metric plotted.
-
-        Returns:
-            holoviews plot: A jitter boxplot.
-        """
-
-        # Clean the data by removing NaN values for this metric
-        data = data.dropna(subset=[vdim])
-
-        # Get the metadata for the tooltips
-        tooltips = [
-            ("Fly", "@fly"),
-            (vdim.capitalize(), f"@{vdim}"),
-        ]
-
-        # Add the metadata to the tooltips
-        for var in self.metadata:
-            tooltips.append((var.capitalize(), f"@{var}"))
-
-        hover = HoverTool(tooltips=tooltips)
-
-        # Get the 'flypath' data
-        flypath_data = data["flypath"]
-        
-        # Define a new TapTool
-        tap = TapTool(callback=CustomJS(args=dict(source=data), code="""
-            console.log('tap event occurred at x-position: ' + cb_data.source.selected.indices);
-            var indices = cb_data.source.selected.indices;
-            for (var i = 0; i < indices.length; i++) {
-                console.log('flypath: ' + source.data['flypath'][indices[i]]);
-            }
-        """))
-        
-        # Compute the bootstrap confidence interval for the metric
-        bs_ci = self.compute_bs_ci(vdim)
-
-        # Get the limits for the y axis
-
-        y_min = data[vdim].min()
-        y_max = data[vdim].max()
-
-        hv_boxplot = (
-            hv.BoxWhisker(
-                data=data,
-                vdims=vdim,
-                kdims=["label", "Brain region"],
-            )
-            .groupby("Brain region")
-            .opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
-        )
-
-        hv_scatterplot = (
-            hv.Scatter(
-                data=data,
-                vdims=[vdim] + self.metadata + ["fly"],
-                kdims=["label", "Brain region"],
-            )
-            .groupby("Brain region")
-            .opts(**plot_options["scatter"], tools=[hover, tap], ylim=(y_min, y_max))
-        )
-
-        if bs_ci is not None:
-            # Create an Area plot for the confidence interval
-            hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
-            hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-                ylabel=f"{vdim}", **plot_options["plot"]
-            )
-
-        else:
-            print("No control data to generate the confidence interval.")
-            hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
-                ylabel=f"{vdim}", **plot_options["plot"]
-            )
-
-        if show:
-            hv.render(hv_jitter_boxplot)
-        if save:
-            if outpath is None:
-                now = datetime.datetime.now()  # get current date and time
-                date_time = now.strftime("%Y%m%d_%H%M")  # format as a string
-
-                output_path = (
-                    get_labserver()
-                    / "Experimental_data"
-                    / "MultiMazeRecorder"
-                    / "Plots"
-                    / f"{vdim}_{date_time}.html"
-                )
-
-            hv.save(hv_jitter_boxplot, output_path)
-
-        return hv_jitter_boxplot
-
-
-# TODO: Find out why SignificantFirst errors when commuting the bootstrapped confidence interval. Same with SignificantFirstTime
-# TODO: Find out why FinalEvent errors with "AbbreviatedException: ValueError: List parameter 'PipelineMeta.vdims' length must be between 1 and 1 (inclusive), not 0." Same with FinalTime
-# TODO: Check the Dataset generation output, fix why some dataset are None types.
