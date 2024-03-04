@@ -17,7 +17,7 @@ for experiment in datapath.iterdir():
                         h5_files_fly = list(corridor.glob("*_tracked_fly*.h5"))
                         if not (slp_files_ball and h5_files_ball and slp_files_fly and h5_files_fly):
                             all_corridors_tracked = False
-                            print(f"Corridor {corridor.name} in experiment {experiment.name} is missing tracking files.")
+                            print(f"Corridor {corridor.name} of arena {arena.name} in experiment {experiment.name} is missing tracking files.")
                             break
                 if not all_corridors_tracked:
                     break

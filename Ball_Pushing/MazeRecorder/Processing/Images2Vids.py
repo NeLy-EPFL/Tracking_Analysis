@@ -30,7 +30,7 @@ def check_video_integrity(video_path):
 def create_video_from_images(images_folder, output_folder, video_name, fps):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
-        terminal_call = f"/usr/bin/ffmpeg -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
+        terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
         subprocess.run(terminal_call, shell=True)
         return True
     else:
