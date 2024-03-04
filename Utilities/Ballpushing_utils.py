@@ -1891,30 +1891,39 @@ class Dataset:
             "Pulls",
             "PushPullRatio",
             "InteractionProportion",
+            "AhaMoment",
+            "AhaMomentIndex",
+            "SignificantRatio",
         ],
         success_cutoff=True,
     ):
         """
-        Helper function to prepare individual fly dataset with summary metrics. Currently, the metrics available are:
+        Prepares a dataset with summary metrics for a given fly. The metrics are computed for all events, but only the ones specified in the 'metrics' argument are included in the returned DataFrame.
+
+        Available metrics:
         - NumberEvents: The number of events found in the flyball_positions DataFrame.
         - FinalEvent: The event at which the fly pushed the ball to its maximum relative distance from the start of the corridor.
         - FinalTime: The time at which the final event occurred.
-        - SignificantEvents: The number of events where the ball was displaced by more that a given distance.
+        - SignificantEvents: The number of events where the ball was displaced by more than a given distance (this distance is set in check_yball_variation function and its default value is 10px).
+        - SignificantRatio: The ratio of significant events to the total number of events.
+        - AhaMoment: The first event at which the fly pushed the ball to at least a distance of 125px from the start of the corridor.
         - SignificantFirst: The index of the first significant event.
         - SignificantFirstTime: The time at which the first significant event occurred.
         - CumulatedBreaks: The total duration of the breaks between events.
         - Pushes: The number of events where the fly pushed the ball.
         - Pulls: The number of events where the fly pulled the ball.
+        - PushPullRatio: The ratio of the number of push events to the total number of significant events.
+        - InteractionProportion: The proportion of the video or subset during which the fly was interacting with the ball.
 
         Args:
             fly (Fly): A Fly object.
             metrics (list): A list of metrics to include in the dataset. The metrics require valid ball and fly tracking data.
+            success_cutoff (bool): If True, only events before the ball reaches the end of the corridor are considered.
 
         Returns:
             pandas.DataFrame: A DataFrame containing the fly's summary metrics and associated metadata.
 
         """
-
         # TODO: Implement events duration
         # TODO: Implement some metric about whether the fly brought the ball close enought to the end of the corridor
 
@@ -1935,6 +1944,7 @@ class Dataset:
         final_event = fly.get_final_event(subset=positions)
         significant_events = fly.get_significant_events(subset=positions)
         events_direction = fly.find_events_direction(subset=positions)
+        aha_moment = fly.get_significant_events(distance=125, subset=positions)
 
         # Create a dictionary of metric calculation functions
         metric_funcs = {
@@ -1950,8 +1960,25 @@ class Dataset:
             "SignificantEvents": lambda: (
                 [len(significant_events)] if significant_events else [0]
             ),
+            "SignificantRatio": lambda: (
+                [len(significant_events) / fly.get_events_number(subset=positions)]
+                if significant_events
+                else [0]
+            ),
+            "AhaMoment": lambda: (
+                [aha_moment[0][0] / fly.experiment.fps] if aha_moment else [None]
+            ),
+            "AhaMomentIndex": lambda: (
+                [fly.find_interaction_events(subset=positions).index(aha_moment[0])]
+                if aha_moment
+                else [None]
+            ),
             "SignificantFirst": lambda: (
-                [fly.interaction_events.index(significant_events[0])]
+                [
+                    fly.find_interaction_events(subset=positions).index(
+                        significant_events[0]
+                    )
+                ]
                 if significant_events
                 else [None]
             ),
