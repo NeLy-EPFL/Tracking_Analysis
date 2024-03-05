@@ -40,11 +40,9 @@ hv_main = {
 # Custom Jitterboxplot function
 
 
-def compute_controls_bs_ci(
-    data, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
-):
+def compute_controls_bs_ci(data, metric, genotypes=["TNTxZ2018"]):
     """
-    Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument.
+    Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument. Currently excluded Genotypes that are technically controls : , "TNTxZ2035", "TNTxM6", "TNTxM7"
 
     Args:
         data (pandas DataFrame): The dataset to compute the confidence interval from.
@@ -139,6 +137,13 @@ def jitter_boxplot(
     def create_plots(region):
         region_data = data[data["Brain region"] == region]
 
+        # If sort_by is set to 'median', sort the region_data by the median of vdim grouped by label
+        if sort_by == "median":
+            median_values = region_data.groupby("label")[vdim].median().sort_values()
+            region_data["label"] = pd.Categorical(
+                region_data["label"], categories=median_values.index, ordered=True
+            )
+
         boxplot = hv.BoxWhisker(
             data=region_data,
             vdims=vdim,
@@ -151,16 +156,53 @@ def jitter_boxplot(
             kdims=["label"],
         ).opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
 
+        if region != "Control":
+            control_data = data[data["Genotype"] == "TNTxZ2018"]
+            control_boxplot = hv.BoxWhisker(
+                data=control_data,
+                vdims=vdim,
+                kdims=["label"],
+            ).opts(box_fill_color=None, box_line_color="green", ylim=(y_min, y_max))
+
+            control_scatterplot = hv.Scatter(
+                data=control_data,
+                vdims=[vdim] + metadata + ["fly"],
+                kdims=["label"],
+            ).opts(
+                alpha=0.5,
+                jitter=0.3,
+                size=6,
+                color="black",
+                tools=[hover],
+                ylim=(y_min, y_max),
+            )
+
         if bs_ci is not None:
             # Create an Area plot for the confidence interval
             hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
-            return (hv_bs_ci * boxplot * scatterplot).opts(
-                ylabel=f"{vdim}", **plot_options["plot"]
-            )
+
+        if region != "Control":
+            if bs_ci is not None:
+                return (
+                    hv_bs_ci
+                    * boxplot
+                    * scatterplot
+                    * control_boxplot
+                    * control_scatterplot
+                ).opts(ylabel=f"{vdim}", **plot_options["plot"])
+            else:
+                return (
+                    boxplot * scatterplot * control_boxplot * control_scatterplot
+                ).opts(ylabel=f"{vdim}", **plot_options["plot"])
         else:
-            return (boxplot * scatterplot).opts(
-                ylabel=f"{vdim}", **plot_options["plot"]
-            )
+            if bs_ci is not None:
+                return (hv_bs_ci * boxplot * scatterplot).opts(
+                    ylabel=f"{vdim}", **plot_options["plot"]
+                )
+            else:
+                return (boxplot * scatterplot).opts(
+                    ylabel=f"{vdim}", **plot_options["plot"]
+                )
 
     # Create a HoloMap
     jitter_boxplot = hv.HoloMap(
@@ -180,6 +222,7 @@ def jitter_boxplot(
                 / "Experimental_data"
                 / "MultiMazeRecorder"
                 / "Plots"
+                / "240305_summaries"
                 / f"{vdim}_{date_time}.html"
             )
 
