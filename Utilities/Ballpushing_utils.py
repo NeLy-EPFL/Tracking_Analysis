@@ -1058,7 +1058,7 @@ class Fly:
 
         variation = yball_event.max() - yball_event.min()
 
-        return variation > threshold
+        return (variation > threshold, variation)
 
     def get_significant_events(self, distance=10, subset=None):
         """
@@ -1082,7 +1082,7 @@ class Fly:
         significant_events = [
             event
             for event in interaction_events
-            if self.check_yball_variation(event, threshold=distance)
+            if self.check_yball_variation(event, threshold=distance)[0]
         ]
 
         return significant_events
@@ -1262,9 +1262,9 @@ class Fly:
                     )
 
                     # Check if yball value varies more than threshold
-                    if self.check_yball_variation(
-                        event
-                    ):  # You need to implement this function
+                    if self.check_yball_variation(event)[
+                        0
+                    ]:  # You need to implement this function
                         # Add red dot to segment
                         dot = np.zeros((10, 10, 3), dtype=np.uint8)
                         dot[:, :, 0] = 0
@@ -1893,6 +1893,8 @@ class Dataset:
             "InteractionProportion",
             "AhaMoment",
             "AhaMomentIndex",
+            "InsightEffect",
+            "TimeToFinish",
             "SignificantRatio",
         ],
         success_cutoff=True,
@@ -1944,7 +1946,12 @@ class Dataset:
         final_event = fly.get_final_event(subset=positions)
         significant_events = fly.get_significant_events(subset=positions)
         events_direction = fly.find_events_direction(subset=positions)
-        aha_moment = fly.get_significant_events(distance=125, subset=positions)
+        aha_moment = fly.get_significant_events(distance=50, subset=positions)
+        aha_moment_index = (
+            fly.find_interaction_events(subset=positions).index(aha_moment[0])
+            if aha_moment
+            else None
+        )
 
         # Create a dictionary of metric calculation functions
         metric_funcs = {
@@ -1969,10 +1976,33 @@ class Dataset:
                 [aha_moment[0][0] / fly.experiment.fps] if aha_moment else [None]
             ),
             "AhaMomentIndex": lambda: (
-                [fly.find_interaction_events(subset=positions).index(aha_moment[0])]
-                if aha_moment
+                [aha_moment_index] if aha_moment_index is not None else [None]
+            ),
+            "InsightEffect": lambda: (
+                [
+                    np.mean(
+                        [
+                            fly.check_yball_variation(event, subset=positions)[1]
+                            for event in fly.find_interaction_events(subset=positions)[
+                                aha_moment_index:
+                            ]
+                        ]
+                    )
+                    / np.mean(
+                        [
+                            fly.check_yball_variation(event, subset=positions)[1]
+                            for event in fly.find_interaction_events(subset=positions)[
+                                :aha_moment_index
+                            ]
+                        ]
+                    )
+                ]
+                if aha_moment_index is not None
+                and aha_moment_index
+                < len(fly.find_interaction_events(subset=positions))
                 else [None]
             ),
+            "TimeToFinish": lambda: [len(positions) / fly.experiment.fps],
             "SignificantFirst": lambda: (
                 [
                     fly.find_interaction_events(subset=positions).index(
