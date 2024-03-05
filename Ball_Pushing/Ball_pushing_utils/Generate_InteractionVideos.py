@@ -59,3 +59,6 @@ for experiment in Experiments:
         if not video_path.exists():
             # If the video doesn't exist, generate it
             fly.generate_interactions_video(outpath=genotype_path)
+        
+        else:
+            print(f"The video {vidname} already exists")
