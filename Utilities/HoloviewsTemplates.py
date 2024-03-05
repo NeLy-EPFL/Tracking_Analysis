@@ -81,6 +81,7 @@ def jitter_boxplot(
     show=True,
     save=False,
     outpath=None,
+    sort_by=None,
 ):
     """
     Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
@@ -130,41 +131,45 @@ def jitter_boxplot(
     y_min = data[vdim].min()
     y_max = data[vdim].max()
 
-    hv_boxplot = (
-        hv.BoxWhisker(
-            data=data,
+    # Group the data by 'Brain region' and 'label'
+    grouped_data = data.groupby(["Brain region", "label"])
+
+    # Define a function that creates a BoxWhisker and a Scatter plot for a given brain region
+
+    def create_plots(region):
+        region_data = data[data["Brain region"] == region]
+
+        boxplot = hv.BoxWhisker(
+            data=region_data,
             vdims=vdim,
-            kdims=["label", "Brain region"],
-        )
-        .groupby("Brain region")
-        .opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
-    )
+            kdims=["label"],
+        ).opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
 
-    hv_scatterplot = (
-        hv.Scatter(
-            data=data,
+        scatterplot = hv.Scatter(
+            data=region_data,
             vdims=[vdim] + metadata + ["fly"],
-            kdims=["label", "Brain region"],
-        )
-        .groupby("Brain region")
-        .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
+            kdims=["label"],
+        ).opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
+
+        if bs_ci is not None:
+            # Create an Area plot for the confidence interval
+            hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+            return (hv_bs_ci * boxplot * scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
+        else:
+            return (boxplot * scatterplot).opts(
+                ylabel=f"{vdim}", **plot_options["plot"]
+            )
+
+    # Create a HoloMap
+    jitter_boxplot = hv.HoloMap(
+        {region: create_plots(region) for region in data["Brain region"].unique()},
+        kdims=["Brain region"],
     )
-
-    if bs_ci is not None:
-        # Create an Area plot for the confidence interval
-        hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
-        hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-            ylabel=f"{vdim}", **plot_options["plot"]
-        )
-
-    else:
-        ic("No control data to generate the confidence interval.")
-        hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
-            ylabel=f"{vdim}", **plot_options["plot"]
-        )
 
     if show:
-        hv.render(hv_jitter_boxplot)
+        hv.render(jitter_boxplot)
     if save:
         if outpath is None:
             now = datetime.datetime.now()  # get current date and time
@@ -178,6 +183,6 @@ def jitter_boxplot(
                 / f"{vdim}_{date_time}.html"
             )
 
-        hv.save(hv_jitter_boxplot, output_path)
+        hv.save(jitter_boxplot, output_path)
 
-    return hv_jitter_boxplot
+    return jitter_boxplot
