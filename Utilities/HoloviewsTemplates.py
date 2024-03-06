@@ -80,6 +80,7 @@ def jitter_boxplot(
     save=False,
     outpath=None,
     sort_by=None,
+    hline_method="bootstrap",
 ):
     """
     Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
@@ -120,10 +121,22 @@ def jitter_boxplot(
     hover = HoverTool(tooltips=tooltips)
 
     # Compute the bootstrap confidence interval for the metric
-    if bs_controls:
-        bs_ci = compute_controls_bs_ci(data, vdim)
+    if hline_method == "bootstrap":
+        if bs_controls:
+            hline_values = compute_controls_bs_ci(data, vdim)
+        else:
+            hline_values = None
+    elif hline_method == "boxplot":
+        # Calculate 25% and 75% quantiles for the control group
+        control_data = data[data["Genotype"] == "TNTxZ2018"]
+        hline_values = (
+            control_data[vdim].quantile(0.25),
+            control_data[vdim].quantile(0.75),
+        )
     else:
-        bs_ci = None
+        raise ValueError(
+            "Invalid hline_method. Choose either 'bootstrap' or 'boxplot'."
+        )
 
     # Get the limits for the y axis
     y_min = data[vdim].min()
@@ -177,14 +190,16 @@ def jitter_boxplot(
                 ylim=(y_min, y_max),
             )
 
-        if bs_ci is not None:
+        if hline_values is not None:
             # Create an Area plot for the confidence interval
-            hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
+            hv_hline = hv.HSpan(hline_values[0], hline_values[1]).opts(
+                fill_alpha=0.2, color="red"
+            )
 
         if region != "Control":
-            if bs_ci is not None:
+            if hline_values is not None:
                 return (
-                    hv_bs_ci
+                    hv_hline
                     * boxplot
                     * scatterplot
                     * control_boxplot
@@ -195,8 +210,8 @@ def jitter_boxplot(
                     boxplot * scatterplot * control_boxplot * control_scatterplot
                 ).opts(ylabel=f"{vdim}", **plot_options["plot"])
         else:
-            if bs_ci is not None:
-                return (hv_bs_ci * boxplot * scatterplot).opts(
+            if hline_values is not None:
+                return (hv_hline * boxplot * scatterplot).opts(
                     ylabel=f"{vdim}", **plot_options["plot"]
                 )
             else:
