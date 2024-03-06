@@ -140,7 +140,8 @@ def jitter_boxplot(
 
     # Get the limits for the y axis
     y_min = data[vdim].min()
-    y_max = data[vdim].max()
+    # For y_max, use the 95th percentile of the data
+    y_max = data[vdim].quantile(0.95)
 
     # Group the data by 'Brain region' and 'label'
     grouped_data = data.groupby(["Brain region", "label"])
