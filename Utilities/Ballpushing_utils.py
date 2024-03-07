@@ -1182,7 +1182,9 @@ class Fly:
 
         return pushing_events, pulling_events
 
-    def generate_clip(self, event, outpath=None, fps=None, width=None, height=None):
+    def generate_clip(
+        self, event, outpath=None, fps=None, width=None, height=None, tracks=False
+    ):
         """
         Generate a video clip for a given event.
 
@@ -1239,6 +1241,15 @@ class Fly:
                     ret, frame = cap.read()
                     if not ret:
                         break
+
+                    # If tracks is True, add the tracking data to the frame
+                    if tracks and self.flyball_positions is not None:
+                        # Get the tracking data for the current frame
+                        flyball_coordinates = self.flyball_positions.loc[_]
+
+                        # Use the draw_circles method to add the tracking data to the frame
+                        frame = self.draw_circles(frame, flyball_coordinates)
+
                     frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
                     # Write some Text
@@ -1333,7 +1344,7 @@ class Fly:
         finally:
             out.release()
 
-    def generate_interactions_video(self, outpath=None):
+    def generate_interactions_video(self, outpath=None, tracks=False):
         """
         Generate a video of the fly's interactions with the ball.
 
@@ -1360,7 +1371,7 @@ class Fly:
         vidname = f"{self.name}_{self.Genotype if self.Genotype else 'undefined'}"
 
         for i, event in enumerate(events):
-            clip_path = self.generate_clip(event, outpath, fps, width, height)
+            clip_path = self.generate_clip(event, outpath, fps, width, height, tracks)
             clips.append(clip_path)
         self.concatenate_clips(clips, outpath, fps, width, height, vidname)
         for clip_path in clips:
@@ -1389,9 +1400,16 @@ class Fly:
             map(int, [flyball_coordinates["xball"], flyball_coordinates["yball"]])
         )
 
-        # Draw a circle at each position
-        cv2.circle(frame, fly_pos, 10, (0, 0, 255), -1)
-        cv2.circle(frame, ball_pos, 10, (255, 0, 0), -1)
+        # Draw a smaller circle at the fly's position
+        cv2.circle(frame, fly_pos, 5, (0, 0, 255), -1)  # Adjust the radius to 5
+
+        # Draw a smaller circle at the ball's position
+        cv2.circle(frame, ball_pos, 5, (255, 0, 0), -1)  # Adjust the radius to 5
+
+        # Draw an empty circle around the ball
+        cv2.circle(
+            frame, ball_pos, 11, (255, 0, 0), 2
+        )  # Adjust the radius to 25 and the thickness to 2
 
         return frame
 
@@ -1864,7 +1882,9 @@ class Dataset:
             dataset = fly.flyball_positions
         # If the fly doesn't have tracking data, don't include it in the dataset
         except AttributeError as e:
-            print(f"Error occurred while preparing dataset for fly {fly.name}: {str(e)}")
+            print(
+                f"Error occurred while preparing dataset for fly {fly.name}: {str(e)}"
+            )
             return
 
         if success_cutoff:

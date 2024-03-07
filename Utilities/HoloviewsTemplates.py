@@ -40,11 +40,9 @@ hv_main = {
 # Custom Jitterboxplot function
 
 
-def compute_controls_bs_ci(
-    data, metric, genotypes=["TNTxZ2018", "TNTxZ2035", "TNTxM6", "TNTxM7"]
-):
+def compute_controls_bs_ci(data, metric, genotypes=["TNTxZ2018"]):
     """
-    Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument.
+    Compute a 95% bootstrap confidence interval for a given metric for flies with specified genotypes. The default usage is to compute the confidence interval for the control genotypes, which are the ones set as default in the genotypes argument. Currently excluded Genotypes that are technically controls : , "TNTxZ2035", "TNTxM6", "TNTxM7"
 
     Args:
         data (pandas DataFrame): The dataset to compute the confidence interval from.
@@ -81,6 +79,9 @@ def jitter_boxplot(
     show=True,
     save=False,
     outpath=None,
+    sort_by=None,
+    hline_method="bootstrap",
+    readme=None,
 ):
     """
     Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
@@ -121,50 +122,118 @@ def jitter_boxplot(
     hover = HoverTool(tooltips=tooltips)
 
     # Compute the bootstrap confidence interval for the metric
-    if bs_controls:
-        bs_ci = compute_controls_bs_ci(data, vdim)
+    if hline_method == "bootstrap":
+        if bs_controls:
+            hline_values = compute_controls_bs_ci(data, vdim)
+        else:
+            hline_values = None
+    elif hline_method == "boxplot":
+        # Calculate 25% and 75% quantiles for the control group
+        control_data = data[data["Genotype"] == "TNTxZ2018"]
+        hline_values = (
+            control_data[vdim].quantile(0.25),
+            control_data[vdim].quantile(0.75),
+        )
     else:
-        bs_ci = None
+        raise ValueError(
+            "Invalid hline_method. Choose either 'bootstrap' or 'boxplot'."
+        )
 
     # Get the limits for the y axis
     y_min = data[vdim].min()
-    y_max = data[vdim].max()
+    # For y_max, use the 95th percentile of the data
+    y_max = data[vdim].quantile(0.95)
 
-    hv_boxplot = (
-        hv.BoxWhisker(
-            data=data,
+    # Group the data by 'Brain region' and 'label'
+    grouped_data = data.groupby(["Brain region", "label"])
+
+    # Define a function that creates a BoxWhisker and a Scatter plot for a given brain region
+
+    def create_plots(region):
+        region_data = data[data["Brain region"] == region]
+
+        # If sort_by is set to 'median', sort the region_data by the median of vdim grouped by label
+        if sort_by == "median":
+            median_values = region_data.groupby("label")[vdim].median().sort_values()
+            region_data["label"] = pd.Categorical(
+                region_data["label"], categories=median_values.index, ordered=True
+            )
+
+        boxplot = hv.BoxWhisker(
+            data=region_data,
             vdims=vdim,
-            kdims=["label", "Brain region"],
-        )
-        .groupby("Brain region")
-        .opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
-    )
+            kdims=["label"],
+        ).opts(**plot_options["boxwhisker"], ylim=(y_min, y_max))
 
-    hv_scatterplot = (
-        hv.Scatter(
-            data=data,
+        scatterplot = hv.Scatter(
+            data=region_data,
             vdims=[vdim] + metadata + ["fly"],
-            kdims=["label", "Brain region"],
-        )
-        .groupby("Brain region")
-        .opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
+            kdims=["label"],
+        ).opts(**plot_options["scatter"], tools=[hover], ylim=(y_min, y_max))
+
+        if region != "Control":
+            control_data = data[data["Genotype"] == "TNTxZ2018"]
+            control_boxplot = hv.BoxWhisker(
+                data=control_data,
+                vdims=vdim,
+                kdims=["label"],
+            ).opts(box_fill_color=None, box_line_color="green", ylim=(y_min, y_max))
+
+            control_scatterplot = hv.Scatter(
+                data=control_data,
+                vdims=[vdim] + metadata + ["fly"],
+                kdims=["label"],
+            ).opts(
+                alpha=0.5,
+                jitter=0.3,
+                size=6,
+                color="black",
+                tools=[hover],
+                ylim=(y_min, y_max),
+            )
+
+        if hline_values is not None:
+            # Create an Area plot for the confidence interval
+            hv_hline = hv.HSpan(hline_values[0], hline_values[1]).opts(
+                fill_alpha=0.2, color="red"
+            )
+
+        if region != "Control":
+            if hline_values is not None:
+                return (
+                    hv_hline
+                    * boxplot
+                    * scatterplot
+                    * control_boxplot
+                    * control_scatterplot
+                ).opts(ylabel=f"{vdim}", **plot_options["plot"])
+            else:
+                return (
+                    boxplot * scatterplot * control_boxplot * control_scatterplot
+                ).opts(ylabel=f"{vdim}", **plot_options["plot"])
+        else:
+            if hline_values is not None:
+                return (hv_hline * boxplot * scatterplot).opts(
+                    ylabel=f"{vdim}", **plot_options["plot"]
+                )
+            else:
+                return (boxplot * scatterplot).opts(
+                    ylabel=f"{vdim}", **plot_options["plot"]
+                )
+
+    # Create a HoloMap
+    jitter_boxplot = hv.HoloMap(
+        {region: create_plots(region) for region in data["Brain region"].unique()},
+        kdims=["Brain region"],
     )
 
-    if bs_ci is not None:
-        # Create an Area plot for the confidence interval
-        hv_bs_ci = hv.HSpan(bs_ci[0], bs_ci[1]).opts(fill_alpha=0.2, color="red")
-        hv_jitter_boxplot = (hv_bs_ci * hv_boxplot * hv_scatterplot).opts(
-            ylabel=f"{vdim}", **plot_options["plot"]
-        )
-
-    else:
-        ic("No control data to generate the confidence interval.")
-        hv_jitter_boxplot = (hv_boxplot * hv_scatterplot).opts(
-            ylabel=f"{vdim}", **plot_options["plot"]
-        )
+    if readme is not None:
+        # Add the readme text to the plot
+        readme_text = hv.Text(0, 0, readme).opts()
+        jitter_boxplot = jitter_boxplot + readme_text
 
     if show:
-        hv.render(hv_jitter_boxplot)
+        hv.render(jitter_boxplot)
     if save:
         if outpath is None:
             now = datetime.datetime.now()  # get current date and time
@@ -175,9 +244,10 @@ def jitter_boxplot(
                 / "Experimental_data"
                 / "MultiMazeRecorder"
                 / "Plots"
+                / "240306_summaries"
                 / f"{vdim}_{date_time}.html"
             )
 
-        hv.save(hv_jitter_boxplot, output_path)
+        hv.save(jitter_boxplot, output_path)
 
-    return hv_jitter_boxplot
+    return jitter_boxplot
