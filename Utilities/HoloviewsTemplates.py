@@ -81,6 +81,7 @@ def jitter_boxplot(
     outpath=None,
     sort_by=None,
     hline_method="bootstrap",
+    readme=None,
 ):
     """
     Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
@@ -226,6 +227,11 @@ def jitter_boxplot(
         kdims=["Brain region"],
     )
 
+    if readme is not None:
+        # Add the readme text to the plot
+        readme_text = hv.Text(0, 0, readme).opts()
+        jitter_boxplot = jitter_boxplot + readme_text
+
     if show:
         hv.render(jitter_boxplot)
     if save:
@@ -238,7 +244,7 @@ def jitter_boxplot(
                 / "Experimental_data"
                 / "MultiMazeRecorder"
                 / "Plots"
-                / "240305_summaries"
+                / "240306_summaries"
                 / f"{vdim}_{date_time}.html"
             )
 
