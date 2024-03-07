@@ -51,8 +51,11 @@ def get_video_size(video: Path) -> tuple:
         print(f"Error running ffprobe on {video}: {result.stderr}")
         return None
     else:
-        return map(int, result.stdout.strip().split(","))
-
+        try:
+            return tuple(map(int, result.stdout.strip().split(",")))
+        except ValueError:
+            print(f"Warning: Unable to get size of video {video}")
+            return None
 
 def create_blank_video(width, height, output_path):
     subprocess.run(
@@ -104,11 +107,21 @@ def create_grid_video(input_folder, output_path, keyword=None):
             list(input_folder.glob(VIDEO_EXT)),
             key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
         )
+        
+    # Check if the video files are valid, meaning their size can be obtained
+    valid_files = []
+    for file in input_files:
+        size = get_video_size(file)
+        if size is not None:
+            valid_files.append(file)
+        else:
+            print(f"Skipping video {file} due to invalid size")
+    input_files = valid_files
 
     print(f"input_files: {input_files}")
 
     # Get the width and height of the first video
-    width, height = get_video_size(input_files[0])
+    width, height = get_video_size(input_files[0].as_posix())
 
     # Calculate the number of columns and rows for the grid layout
     num_videos = len(input_files)
@@ -299,22 +312,23 @@ def make_bundles(input_folder, output_folder, test_mode=False):
     # Get all video files from the input folder
     video_files = sorted(input_folder.glob(VIDEO_EXT))
 
-    # Group the video files by date and arena
+    # Group the video files by date, middle part, and arena
     video_groups = [
         list(group) for _, group in groupby(
-            video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[-3])
+            video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[1:-3], f.stem.split("_")[-3])
         )
     ]
 
     # Create a horizontal video for each group
-    for group in video_groups:
-        # Get the date and arena from the first video in the group
-        date, arena = group[0].stem.split("_")[0], group[0].stem.split("_")[-3]
+    for i, group in enumerate(video_groups):
+        # Get the date, middle part, and arena from the first video in the group
+        date, middle_part, arena = group[0].stem.split("_")[0], "_".join(group[0].stem.split("_")[1:-3]), group[0].stem.split("_")[-3]
 
         # Sort the videos in the group by corridor number
         group.sort(key=lambda f: int(f.stem.split("_")[-2].replace("corridor", "")))
 
-        output_path = output_folder / f"bundle_{date}_{arena}.mp4"
+        # Add an index to the output file name to differentiate between videos with the same date, middle part, and arena
+        output_path = output_folder / f"bundle_{date}_{middle_part}_{arena}_{i+1}.mp4"
         create_horizontal_video(
             source=group,
             output_path=output_path,
@@ -421,9 +435,16 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
 
     # Step 1: Make bundles
     make_bundles(input_folder, output_folder, test_mode=test_mode)
+    
+    # Get the list of bundle files
+    bundle_files = list(output_folder.glob(BUNDLE_KEYWORD))
 
-    # Step 2: Assemble bundles
-    assemble_bundles(output_folder, output_path, test_mode=test_mode)
+    if len(bundle_files) == 1:
+        # If there is only one bundle, rename it to the output file name
+        bundle_files[0].rename(output_path)
+    else:
+        # If there are multiple bundles, assemble them into a single video
+        assemble_bundles(output_folder, output_path, test_mode=test_mode)
 
     # Step 3: Remove the bundles
     for bundle_file in output_folder.glob(BUNDLE_KEYWORD):
@@ -452,7 +473,7 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
 
 # process_videos(
 #     input_folder=Path(
-#         "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxDDC (copy)"
+#         "/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine/TNTxZ1647"
 #     ),
 #     test_mode=True,
 # )
