@@ -1910,7 +1910,7 @@ class Dataset:
             "SignificantFirstTime",
             "Pushes",
             "Pulls",
-            "PushPullRatio",
+            "PullingRatio",
             "InteractionProportion",
             "AhaMoment",
             "AhaMomentIndex",
@@ -1935,7 +1935,7 @@ class Dataset:
         - CumulatedBreaks: The total duration of the breaks between events.
         - Pushes: The number of events where the fly pushed the ball.
         - Pulls: The number of events where the fly pulled the ball.
-        - PushPullRatio: The ratio of the number of push events to the total number of significant events.
+        - PullingRatio: The ratio of the number of push events to the total number of significant events.
         - InteractionProportion: The proportion of the video or subset during which the fly was interacting with the ball.
 
         Args:
@@ -2046,12 +2046,14 @@ class Dataset:
             ],
             "Pushes": lambda: [len(events_direction[0])] if events_direction else [0],
             "Pulls": lambda: [len(events_direction[1])] if events_direction else [0],
-            "PushPullRatio": lambda: [
+            "PullingRatio": lambda: [
                 (
-                    (len(events_direction[0]) - len(events_direction[1]))
+                    (len(events_direction[1]))
                     / (len(events_direction[0]) + len(events_direction[1]))
                     if events_direction
-                    and (len(events_direction[0]) != 0 or len(events_direction[1]) != 0)
+                    and (
+                        len(events_direction[0]) != 0
+                    )  # or len(events_direction[1]) != 0)
                     else float("nan")
                 )
             ],
