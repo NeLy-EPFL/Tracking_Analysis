@@ -224,13 +224,13 @@ def process_folder(in_folder):
 check_process(datafolder)
 
 
-# if os.isatty(sys.stdin.fileno()):
-#     run_checkcrops = input(
-#         "Launch verification of processed folders integrity? (y/n): "
-#     )
-#     if run_checkcrops.lower() == "y":
-#         subprocess.run(
-#             [
-#                 "/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckCrops.sh"
-#             ]
-#         )
+if os.isatty(sys.stdin.fileno()):
+    run_checkcrops = input(
+        "Launch verification of processed folders integrity? (y/n): "
+    )
+    if run_checkcrops.lower() == "y":
+        subprocess.run(
+            [
+                "/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckCrops.sh"
+            ]
+        )

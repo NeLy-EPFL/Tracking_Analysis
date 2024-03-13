@@ -10,79 +10,34 @@ import sys
 def check_integrity(folder, source_folder):
     folder = Path(folder)
     source_folder = Path(source_folder)
-    folder_items = list(folder.iterdir())
-    # Check for exactly one image file in folder
-    image_count = len(list(folder.glob("*.png"))) + len(list(folder.glob("*.jpg")))
-    if image_count != 1:
+
+    # Check for at least one image file in folder
+    image_files = list(folder.glob("*.png")) + list(folder.glob("*.jpg"))
+    if not image_files:
         print(f"Cropped check image not found!")
         remove = input("Do you want to remove the processed folder? (y/n): ")
         if remove.lower() == "y":
             shutil.rmtree(folder)
             print(f"Folder {folder.name} has been removed.")
         return False
-    else:
-        print(f"Cropped check image found...")
-        # Display the image and ask the user if it's valid
-        if "SSH_CLIENT" in os.environ or "SSH_TTY" in os.environ:
-            valid = input(
-                f"Please check the detected ROIs in {folder.name}. Are they valid? (y/n):"
-            )
-        else:
-            img = mpimg.imread(str(folder / "crop_check.png"))
-            plt.imshow(img)
-            plt.show(block=False)  # added line to display the image using matplotlib
-            valid = input("Are the detected ROIs valid? (y/n): ")
-            plt.close()  # added line to close the image window
 
-        if valid.lower() == "n":
-            remove = input("Do you want to remove the processed folder? (y/n): ")
-            if remove.lower() == "y":
-                shutil.rmtree(folder)
-                print(f"Folder {folder.name} has been removed.")
-            return False
-    # Check for exactly 9 subfolders in folder
-    subfolder_count = sum(1 for item in folder_items if item.is_dir())
-    if subfolder_count != 9:
-        print(f"Number of subfolders in folder: {subfolder_count}")
+    print(f"Cropped check images found...")
+    # Display the images in a grid and ask the user if they're valid
+    fig, axs = plt.subplots(len(image_files), figsize=(10, 10))
+    for ax, image_file in zip(axs, image_files):
+        img = mpimg.imread(str(image_file))
+        ax.imshow(img)
+    plt.show(block=False)  # display the image using matplotlib
+    valid = input("Are the detected ROIs valid? (y/n): ")
+    plt.close()  # close the image window
+
+    if valid.lower() == "n":
         remove = input("Do you want to remove the processed folder? (y/n): ")
         if remove.lower() == "y":
             shutil.rmtree(folder)
             print(f"Folder {folder.name} has been removed.")
         return False
-    else:
-        print(f"all arenas found...")
-    source_image_count = len(list(source_folder.glob("*.png"))) + len(
-        list(source_folder.glob("*.jpg"))
-    )
-    for subfolder in folder.iterdir():
-        if not subfolder.is_dir():
-            continue
-        if len(list(subfolder.iterdir())) != 6:
-            print(
-                f"Number of subsubfolders in subfolder: {len(list(subfolder.iterdir()))}"
-            )
-            remove = input("Do you want to remove the processed folder? (y/n): ")
-            if remove.lower() == "y":
-                shutil.rmtree(folder)
-                print(f"Folder {folder.name} has been removed.")
-            return False
-        else:
-            print(f"all corridors found in {subfolder.stem}...")
-        for subsubfolder in subfolder.iterdir():
-            if not subsubfolder.is_dir():
-                return False
-            image_count = len(list(subsubfolder.glob("*.png"))) + len(
-                list(subsubfolder.glob("*.jpg"))
-            )
-            if image_count != source_image_count:
-                print(
-                    f"Image count for folder: {subsubfolder.name} is {image_count} instead of {source_image_count}"
-                )
-                remove = input("Do you want to remove the processed folder? (y/n): ")
-                if remove.lower() == "y":
-                    shutil.rmtree(folder)
-                    print(f"Folder {folder.name} has been removed.")
-                return False
+
     print(f"Folder {folder.name} is verified.")
     return True
 
