@@ -309,8 +309,10 @@ def make_bundles(input_folder, output_folder, test_mode=False):
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
 
-    # Get all video files from the input folder
-    video_files = sorted(input_folder.glob(VIDEO_EXT))
+    # Get all video files from the input folder, excluding files smaller than 300 bytes.
+    video_files = sorted(
+        f for f in input_folder.glob(VIDEO_EXT) if f.stat().st_size > 300
+    )
 
     # Group the video files by date, middle part, and arena
     video_groups = [
@@ -479,7 +481,7 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
 # )
 
 # Find all folders in the input folder
-VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/240129_TNT_Fine")
+VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/TNT_Fine_Annotated_True")
 
 Folders = [f for f in VideoFolder.iterdir() if f.is_dir()]
 print(Folders)
