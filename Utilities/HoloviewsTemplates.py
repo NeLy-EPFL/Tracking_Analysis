@@ -82,6 +82,7 @@ def jitter_boxplot(
     sort_by=None,
     hline_method="bootstrap",
     readme=None,
+    layout=False,
 ):
     """
     Generate a jitter boxplot for a given metric. The jitter boxplot is a combination of a boxplot and a scatterplot. The boxplot shows the distribution of the metric for each brain region, while the scatterplot shows the value of the metric for each fly.
@@ -155,9 +156,8 @@ def jitter_boxplot(
         # If sort_by is set to 'median', sort the region_data by the median of vdim grouped by label
         if sort_by == "median":
             median_values = region_data.groupby("label")[vdim].median().sort_values()
-            region_data["label"] = pd.Categorical(
-                region_data["label"], categories=median_values.index, ordered=True
-            )
+            region_data["median"] = region_data["label"].map(median_values)
+            region_data = region_data.sort_values("median")
 
         boxplot = hv.BoxWhisker(
             data=region_data,
@@ -221,11 +221,19 @@ def jitter_boxplot(
                     ylabel=f"{vdim}", **plot_options["plot"]
                 )
 
-    # Create a HoloMap
-    jitter_boxplot = hv.HoloMap(
-        {region: create_plots(region) for region in data["Brain region"].unique()},
-        kdims=["Brain region"],
-    )
+    # If layout is True, create a Layout with the jitter boxplots for each brain region
+    if layout:
+        jitter_boxplot = hv.Layout(
+            {region: create_plots(region) for region in data["Brain region"].unique()}
+        ).cols(2)
+
+    else:
+
+        # Create a HoloMap
+        jitter_boxplot = hv.HoloMap(
+            {region: create_plots(region) for region in data["Brain region"].unique()},
+            kdims=["Brain region"],
+        )
 
     if readme is not None:
         # Add the readme text to the plot

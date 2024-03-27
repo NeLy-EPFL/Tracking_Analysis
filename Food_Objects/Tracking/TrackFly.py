@@ -31,7 +31,7 @@ for file in Files:
 
     # Here are the arguments to set in order to trim out the part where the arena is opened initially.
 
-    startpoint = "00:00:01"  # Start point is the timepoint where the arena is fully opened and static
+    startpoint = "00:00:00"  # Start point is the timepoint where the arena is fully opened and static
     finishpoint = "00:10:00"  # Finish point is the last timepoint of the video
     TrimmedPath = file.with_stem(file.stem + "_Trimmed")
 
