@@ -1,5 +1,9 @@
 import numpy as np
 import pandas as pd
+import sys
+
+sys.path.insert(0, "../../Tracktor")
+
 import tracktor as tr
 import cv2
 import sys
@@ -11,7 +15,7 @@ from pathlib import Path
 # Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
 
 DataPath = Path(
-    "/Users/ulric/Desktop/Uproot"
+    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Irene_Optobot/20_days/Irene_20d/SynjRQ-Atg18/f5_20d/221219/172454_s0a0_p6-0"
 )
 
 
