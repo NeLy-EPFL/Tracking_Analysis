@@ -37,6 +37,34 @@ hv_main = {
     },
 }
 
+hv_irene = {
+    "boxwhisker": {
+        "box_fill_color": None,
+        "box_line_color": "black",
+        "outlier_fill_color": None,
+        "outlier_line_color": None,
+        "framewise": True,
+    },
+    "scatter": {
+        "jitter": 0.3,
+        "alpha": 0.5,
+        "size": 6,
+        "cmap": "Category10",
+        "framewise": True,
+    },
+    "plot": {
+        "width": 500,
+        "height": 500,
+        "show_legend": False,
+        "xlabel": "",
+        "invert_axes": True,
+        "show_grid": True,
+        "fontscale": 1,
+        "title": "",
+        "active_tools": [],
+    },
+}
+
 # Custom Jitterboxplot function
 
 

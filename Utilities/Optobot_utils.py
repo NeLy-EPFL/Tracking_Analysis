@@ -57,7 +57,13 @@ class Fly:
         exp_dict = np.load(
             self.directory / "experiment_dict.npy", allow_pickle=True
         ).item()
-        self.fps = exp_dict["fps"]
+
+        # if exp_dict contains a key "fps", use it, otherwise use the default value
+
+        if "fps" not in exp_dict:
+            self.fps = 80
+        else:
+            self.fps = exp_dict["fps"]
 
         self.data = self.load_data()
 

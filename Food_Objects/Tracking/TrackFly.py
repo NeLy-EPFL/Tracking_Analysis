@@ -15,7 +15,7 @@ from pathlib import Path
 # Ffmpeg = "/usr/local/Cellar/ffmpeg/5.0-with-options_1/bin/ffmpeg"
 
 DataPath = Path(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Irene_Optobot/20_days/Irene_20d/SynjRQ-Atg18/f5_20d/221219/172454_s0a0_p6-0"
+    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/Irene_Optobot/20_days/Irene_20d/SynjRQ-Atg18/m3_20d/221220/171357_s0a0_p6-0"
 )
 
 
@@ -123,7 +123,7 @@ for file in Files:
 
     # Write a video with random frames taken in the input video
     f = 0
-    while f <= 300:
+    while f <= 600:
         # get total number of frames
         totalFrames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         randomFrameNumber = random.randint(0, totalFrames)
