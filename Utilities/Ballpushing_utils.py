@@ -549,7 +549,14 @@ class Fly:
         try:
             self.video = list(self.directory.glob(f"{self.corridor}.mp4"))[0]
         except IndexError:
-            raise FileNotFoundError(f"No video found for {self.name}.")
+            try:
+                self.video = list(
+                    self.directory.glob(
+                        f"{self.directory.parent.name}_corridor_{self.corridor[-1]}.mp4"
+                    )
+                )[0]
+            except IndexError:
+                raise FileNotFoundError(f"No video found for {self.name}.")
 
         try:
             self.flytrack = list(directory.glob("*tracked_fly*.analysis.h5"))[0]
@@ -1597,7 +1604,12 @@ class Experiment:
         mp4_files = [
             mp4_file
             for dir in mp4_directories
-            if (mp4_file := dir / f"{dir.name}.mp4").exists()
+            if (
+                (mp4_file := dir / f"{dir.name}.mp4").exists()
+                or (
+                    mp4_file := dir / f"{dir.parent.name}_corridor_{dir.name[-1]}.mp4"
+                ).exists()
+            )
         ]
 
         # Create a Fly object for each .mp4 file
