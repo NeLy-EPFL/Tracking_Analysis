@@ -1,0 +1,8 @@
+numpy
+pyserial
+networkx
+scikit-image
+imageio
+pygobject
+opencv
+matplotlib

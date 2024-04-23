@@ -3,9 +3,124 @@ import numpy as np
 import pandas as pd
 from traceback import format_tb
 import requests
+import re
 import os
 import platform
 from pathlib import Path
+import stdlib_list
+import subprocess
+
+
+def generate_conda(project_dir, env_name):
+    """
+    Automatically detect necessary libraries for a given project by scanning the Python and Jupyter files.
+    Then build a conda environment that has the required libraries.
+
+    Parameters:
+    project_dir (str): The path to the project directory.
+    env_name (str): The name of the conda environment to create.
+    """
+
+    # Convert project_dir to a pathlib.Path object for easier path manipulation
+    project_dir = Path(project_dir)
+
+    # Scan all Python and Jupyter files in the project directory and extract all import statements.
+    python_files = list(project_dir.rglob("*.py")) + list(project_dir.rglob("*.ipynb"))
+
+    # Get a list of directories and python files in the project
+    project_files_and_dirs = [
+        p.stem for p in project_dir.rglob("*") if p.is_dir() or p.suffix == ".py"
+    ]
+
+    # From the import statements, extract the library names.
+    import_statements = []
+    for file in python_files:
+        with open(file, "r") as f:
+            file_content = f.read()
+            import_statements.extend(
+                re.findall(
+                    r"^(?:from\s+([a-zA-Z0-9_]+)\.[a-zA-Z0-9_]*|import\s+([a-zA-Z0-9_]+)(?:\.[a-zA-Z0-9_]+)?)",
+                    file_content,
+                    re.MULTILINE,
+                )
+            )
+
+    # Create a list of unique library names.
+    libraries = set([lib for tuple in import_statements for lib in tuple if lib])
+
+    # Exclude directories and files that are internal to the project
+    libraries = [lib for lib in libraries if lib not in project_files_and_dirs]
+
+    # Exclude Python Standard Library modules.
+    std_lib = set(
+        stdlib_list.stdlib_list("3.7")
+    )  # Replace "3.7" with your Python version.
+    libraries = [lib for lib in libraries if lib not in std_lib]
+
+    # Replace library names with correct conda package names and separate pip packages.
+    conda_libraries = []
+    pip_libraries = []
+    for lib in libraries:
+        if lib == "cv2":
+            conda_libraries.append("opencv")
+        elif lib == "skimage":
+            conda_libraries.append("scikit-image")
+        elif lib == "gi":
+            conda_libraries.append("pygobject")
+        elif lib == "serial":
+            conda_libraries.append("pyserial")
+        elif lib == "PyQt6":
+            pip_libraries.append("PyQt6")
+        else:
+            conda_libraries.append(lib)
+
+    # Use these lists to create a `requirements.txt` file for conda and `requirements_pip.txt` for pip.
+    with open("requirements.txt", "w") as f:
+        for lib in conda_libraries:
+            f.write(f"{lib}\n")
+
+    with open("requirements_pip.txt", "w") as f:
+        for lib in pip_libraries:
+            f.write(f"{lib}\n")
+
+    # print the libraries necessary for the project
+    print("The following libraries are necessary for the project:")
+    print("Conda libraries:", conda_libraries)
+    print("Pip libraries:", pip_libraries)
+    print("Creating conda environment...")
+
+    # Use the `requirements.txt` file to create a new conda environment.
+    try:
+        subprocess.check_call(
+            f"conda create --name {env_name} --file requirements.txt", shell=True
+        )
+        print("Installing pip packages in the new conda environment...")
+        # Initialize conda for bash shell before activating the environment
+        subprocess.check_call(
+            f'eval "$(conda shell.bash hook)" && conda activate {env_name} && pip install -r requirements_pip.txt',
+            shell=True,
+        )
+    except subprocess.CalledProcessError as e:
+        # Capture the output of the command
+        output = e.output.decode()
+
+        # Find the names of the packages that were not found
+        not_found = re.findall(
+            r"PackagesNotFoundError: The following packages are not available from current channels:\n\n  - (.*)\n",
+            output,
+        )
+
+        if not_found:
+            print(
+                f"The following packages could not be found: {', '.join(not_found)}. They might be named differently in the conda repository. Please check their names online."
+            )
+        else:
+            print(
+                "An error occurred while creating the conda environment. Here's the full error message:"
+            )
+            print(output)
+
+    print(f"Conda environment {env_name} created successfully.")
 
 
 def get_labserver():
