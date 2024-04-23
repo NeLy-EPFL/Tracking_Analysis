@@ -146,7 +146,7 @@ def replace_nans_with_previous_value(arr):
     Returns:
         None. The function modifies the array in-place.
     """
-    
+
     # Check if the first value is NaN
     if np.isnan(arr[0]):
         # Find the next non-NaN value
