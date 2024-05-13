@@ -37,6 +37,38 @@ hv_main = {
     },
 }
 
+# hv_slides is optimised for nice rendering on a ppt or keynote presentation. Essentially plots are bigger and lines are thicker to make it more readable.
+
+hv_slides = {
+    "boxwhisker": {
+        "box_fill_color": None,
+        "box_line_color": "black",
+        "outlier_fill_color": None,
+        "outlier_line_color": None,
+        "box_line_width": 2,
+        "whisker_line_width": 2,
+        "framewise": True,
+    },
+    "scatter": {
+        "jitter": 0.3,
+        # "color": "label",
+        "alpha": 0.7,
+        "size": 8,
+        "cmap": "Category10",
+        "framewise": True,
+    },
+    "plot": {
+        "width": 1500,
+        "height": 1000,
+        "show_legend": False,
+        "xlabel": "",
+        "invert_axes": True,
+        "show_grid": True,
+        "fontscale": 2.5,
+        "title": "",
+    },
+}
+
 hv_irene = {
     "boxwhisker": {
         "box_fill_color": None,
@@ -146,7 +178,7 @@ def jitter_boxplot(
             hline_values = None
     elif hline_method == "boxplot":
         # Calculate 25% and 75% quantiles for the control group
-        control_data = data[data[kdims] == "TNTxZ2018"]
+        control_data = data[data["Genotype"] == "TNTxZ2018"]
         hline_values = (
             control_data[vdim].quantile(0.25),
             control_data[vdim].quantile(0.75),
@@ -159,8 +191,8 @@ def jitter_boxplot(
     # Get the limits for the y axis
     y_min = data[vdim].min()
     # For y_max, use the 95th percentile of the data
-    # y_max = data[vdim].max()
-    y_max = data[vdim].quantile(0.95)
+    y_max = data[vdim].max()
+    # y_max = data[vdim].quantile(0.95)
 
     # Group the data by groupby and 'label'
     grouped_data = data.groupby([groupby, kdims])
