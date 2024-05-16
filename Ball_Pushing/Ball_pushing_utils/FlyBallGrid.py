@@ -481,7 +481,7 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
 # )
 
 # Find all folders in the input folder
-VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/TNT_Fine_Annotated_True")
+VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/MagnetBlock")
 
 Folders = [f for f in VideoFolder.iterdir() if f.is_dir()]
 print(Folders)
