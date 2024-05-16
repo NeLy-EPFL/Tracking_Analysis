@@ -592,7 +592,9 @@ class Fly:
             self.flyball_positions = None
 
         # Check if the corridor is empty or the fly is in bad shape and set the dead_or_empty attribute accordingly
-        self.dead_or_empty = self.check_empty() or self.check_dead()
+
+        if self.flyball_positions is not None:
+            self.dead_or_empty = self.check_empty() or self.check_dead()
 
     def __str__(self):
         # Get the genotype from the metadata
@@ -1600,6 +1602,8 @@ class Experiment:
             dir for dir in self.directory.glob("**/*") if any(dir.glob("*.mp4"))
         ]
 
+        # print(mp4_directories)
+
         # Find all .mp4 files that are named the same as their parent directory
         mp4_files = [
             mp4_file
@@ -1612,10 +1616,14 @@ class Experiment:
             )
         ]
 
+        # print(mp4_files)
+
         # Create a Fly object for each .mp4 file
 
         flies = []
         for mp4_file in mp4_files:
+            # print(type(mp4_file.parent))
+            # print(type(self))
             try:
                 fly = Fly(mp4_file.parent, experiment=self)
                 flies.append(fly)
