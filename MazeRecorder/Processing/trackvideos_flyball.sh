@@ -19,7 +19,7 @@ subdirs=$(find $datafolder -type d)
 # For each subdirectory, check if .slp and .h5 files already exist
 for subdir in $subdirs; do
 # Only process directories that have been pre-processed or fully processed
-    if [[ $subdir == *_Checked* ]] || [[ $subdir == *_Tracked* ]]; then
+    if [[ $subdir == *_Checked* ]]; then # || [[ $subdir == *_Tracked* ]] has been removed for efficiency
     
     slp_file_ball=$(find $subdir -maxdepth 1 -type f -name "*_tracked_ball.slp")
     h5_file_ball=$(find $subdir -maxdepth 1 -type f -name "*_tracked_ball.h5")

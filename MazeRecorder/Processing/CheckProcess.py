@@ -24,6 +24,8 @@ def check_integrity(folder, source_folder):
     print(f"Cropped check images found...")
     # Display the images in a grid and ask the user if they're valid
     fig, axs = plt.subplots(len(image_files), figsize=(10, 10))
+    if len(image_files) == 1:
+        axs = [axs]  # make axs iterable
     for ax, image_file in zip(axs, image_files):
         img = mpimg.imread(str(image_file))
         ax.imshow(img)
