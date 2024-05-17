@@ -121,7 +121,7 @@ def process_folder(in_folder):
     processedfolder.mkdir(exist_ok=True)
 
     # Load the first frame
-    frame = cv2.imread(inputfolder.joinpath("image0.jpg").as_posix())
+    frame = cv2.imread(inputfolder.joinpath("image104400.jpg").as_posix())
 
     # If it's not already, make it grayscale
     if len(frame.shape) > 2:
