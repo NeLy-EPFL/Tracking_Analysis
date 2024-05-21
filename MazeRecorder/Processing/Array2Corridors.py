@@ -64,7 +64,6 @@ def check_process(data_folder):
                 process_folder(folder)
 
 
-
 def modify_corridors(Corridors):
     for i in range(len(Corridors)):
         for j in range(len(Corridors[i])):
@@ -352,4 +351,9 @@ if os.isatty(sys.stdin.fileno()):
         "Launch verification of processed folders integrity? (y/n): "
     )
     if run_checkcrops.lower() == "y":
-        subprocess.run(["/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckCrops.sh"])
+        # Get the directory of the current script
+        script_dir = Path(__file__).resolve().parent
+        # Construct the path to CheckCrops.sh
+        checkcrops_path = script_dir / "CheckCrops.sh"
+        # Run the script
+        subprocess.run([str(checkcrops_path)])

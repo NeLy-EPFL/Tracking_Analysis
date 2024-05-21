@@ -37,12 +37,6 @@ for subdir in $subdirs; do
     fi
 done
 
-# Set path to python script
-python_script="/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckTracks.py"
-
-# Run python script
-python $python_script
-
 
 
 

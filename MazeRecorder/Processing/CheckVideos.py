@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 import shutil
+import utils_behavior
 
 
 def check_video_integrity(video_path):
@@ -37,7 +38,6 @@ def check_folder_integrity(folder):
 
 
 def process_data_folder(data_folder, source_data_folder):
-    data_folder = Path(data_folder)
 
     for folder in data_folder.iterdir():
         if not folder.is_dir() or not folder.name.endswith("_Videos"):
@@ -49,8 +49,8 @@ def process_data_folder(data_folder, source_data_folder):
             folder.rename(new_name)
             print(f"Folder {folder.name} is verified.")
             print(f"Folder renamed to: {new_name}")
-            
-            image_folder_name = folder.name.replace('_Videos', '_Cropped_Checked')
+
+            image_folder_name = folder.name.replace("_Videos", "_Cropped_Checked")
             image_folder = source_data_folder / image_folder_name
             if image_folder.exists() and image_folder.is_dir():
                 print(f"Removing original image folder: {image_folder.as_posix()}")
@@ -60,9 +60,10 @@ def process_data_folder(data_folder, source_data_folder):
             new_name = f"{folder}_NotChecked"
 
 
-source_data_folder = Path('/home/matthias/Videos/') 
+source_data_folder = Path("/home/matthias/Videos/")
+remote_data_folder = utils_behavior.Utils.get_data_path()
 
 process_data_folder(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/",
-    source_data_folder
+    remote_data_folder,
+    source_data_folder,
 )

@@ -1,8 +1,7 @@
 from pathlib import Path
+import utils_behavior
 
-datapath = Path(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/"
-)
+datapath = utils_behavior.Utils.get_data_path()
 
 for experiment in datapath.iterdir():
     if experiment.is_dir() and "_Checked" in experiment.name or "_Tracked" in experiment.name:

@@ -4,11 +4,10 @@ import subprocess
 import os
 import sys
 import numpy as np
+import utils_behavior
 
 data_folder = Path("/home/matthias/Videos/")
-output_path = Path(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/"
-)
+output_path = utils_behavior.Utils.get_data_path()
 
 # fps = "29"
 
@@ -97,11 +96,11 @@ for folder in data_folder.iterdir():
         new_output_folder = output_path / new_output_folder_name
         processing_output_folder.rename(new_output_folder)
 
-subprocess.run(
-    [
-        "/home/matthias/Tracking_Analysis/Ball_Pushing/MazeRecorder/Processing/CheckVideos.sh"
-    ]
-)
+script_dir = Path(__file__).resolve().parent
+
+CheckVideos_path = script_dir / "CheckVideos.sh"
+
+subprocess.run([str(CheckVideos_path)])
 
 # TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 

@@ -4,11 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import median_filter, gaussian_filter
 from tqdm import tqdm
+import utils_behavior
 
 # Set the path to the data folder
-data_folder = Path(
-    "/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos"
-)
+data_folder = utils_behavior.Utils.get_data_path()
 
 # Set the threshold value
 threshold = 100
