@@ -11,6 +11,7 @@ import time
 FONT_FILE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 VIDEO_EXT = "*.mp4"
 BUNDLE_KEYWORD = "*bundle*.mp4"
+ROTATE = False
 
 
 def get_video_size(video: Path) -> tuple:
@@ -193,7 +194,7 @@ def get_video_dimensions(video_path):
 
 
 def create_horizontal_video(
-    source, output_path, transpose=True, date=None, arena=None, spacing=None, test_mode=False
+    source, output_path, transpose=ROTATE, date=None, arena=None, spacing=None, test_mode=False
 ):
     """
     Stack videos horizontally and add date and arena labels if provided.
@@ -327,7 +328,7 @@ def make_bundles(input_folder, output_folder, test_mode=False):
         date, middle_part, arena = group[0].stem.split("_")[0], "_".join(group[0].stem.split("_")[1:-3]), group[0].stem.split("_")[-3]
 
         # Sort the videos in the group by corridor number
-        group.sort(key=lambda f: int(f.stem.split("_")[-2].replace("corridor", "")))
+        group.sort(key=lambda f: int(f.stem.split("_")[-1].replace("corridor", "")))
 
         # Add an index to the output file name to differentiate between videos with the same date, middle part, and arena
         output_path = output_folder / f"bundle_{date}_{middle_part}_{arena}_{i+1}.mp4"
@@ -337,7 +338,7 @@ def make_bundles(input_folder, output_folder, test_mode=False):
             date=date,
             arena=arena,
             test_mode=test_mode,
-            transpose=True,
+            transpose=ROTATE,
         )
 
 def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode=False):
