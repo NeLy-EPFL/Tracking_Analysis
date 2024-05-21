@@ -4,6 +4,7 @@ import subprocess
 import os
 import sys
 import numpy as np
+from datetime import datetime
 import utils_behavior
 
 data_folder = Path("/home/matthias/Videos/")
@@ -29,9 +30,25 @@ def check_video_integrity(video_path):
 def create_video_from_images(images_folder, output_folder, video_name, fps):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
+        # Get the current date and time
+        now = datetime.now()
+        # Format the date and time as a string
+        now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+        # Use the date and time to create a unique log file name
+        log_file_name = f"ffmpeg_log_{now_str}.txt"
         terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
-        subprocess.run(terminal_call, shell=True)
-        return True
+        try:
+            with open(log_file_name, "w") as f:
+                subprocess.run(
+                    terminal_call, shell=True, stdout=f, stderr=subprocess.STDOUT
+                )
+            # If the script completes without errors, remove the log file
+            os.remove(log_file_name)
+            return True
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            # If an error occurs, keep the log file and return False
+            return False
     else:
         return False
 
