@@ -37,16 +37,23 @@ for subdir in $subdirs; do
             output_file_fly="${output_folder}/${video_name}_tracked_fly.slp"
 
             # If .slp and .h5 files for ball do not exist, track ball
+            # Print a message to the terminal to indicate that the video is being processed
+            echo "Processing video: $video"
+
             if [ -z "$slp_file_ball" ] && [ -z "$h5_file_ball" ]; then
-                sleap-track $video --model $model_path_ball --output $output_file_ball
+                echo "No tracking data found for the ball position. Tracking ball..."
+                sleap-track $video --model $model_path_ball --output $output_file_ball --verbosity rich
                 sleap-convert "$output_file_ball" --format analysis
             fi
 
             # If .slp and .h5 files for fly do not exist, track fly
             if [ -z "$slp_file_fly" ] && [ -z "$h5_file_fly" ]; then
-                sleap-track $video --model $model_path_fly --output $output_file_fly
+                echo "No tracking data found for the fly position. Tracking fly..."
+                sleap-track $video --model $model_path_fly --output $output_file_fly --verbosity rich
                 sleap-convert "$output_file_fly" --format analysis
             fi
+
+            echo "Processing of $video complete."
         done
     fi
 done
