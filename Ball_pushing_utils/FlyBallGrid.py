@@ -58,6 +58,7 @@ def get_video_size(video: Path) -> tuple:
             print(f"Warning: Unable to get size of video {video}")
             return None
 
+
 def create_blank_video(width, height, output_path):
     subprocess.run(
         [
@@ -108,7 +109,7 @@ def create_grid_video(input_folder, output_path, keyword=None):
             list(input_folder.glob(VIDEO_EXT)),
             key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
         )
-        
+
     # Check if the video files are valid, meaning their size can be obtained
     valid_files = []
     for file in input_files:
@@ -194,7 +195,13 @@ def get_video_dimensions(video_path):
 
 
 def create_horizontal_video(
-    source, output_path, transpose=ROTATE, date=None, arena=None, spacing=None, test_mode=False
+    source,
+    output_path,
+    transpose=ROTATE,
+    date=None,
+    arena=None,
+    spacing=None,
+    test_mode=False,
 ):
     """
     Stack videos horizontally and add date and arena labels if provided.
@@ -235,22 +242,31 @@ def create_horizontal_video(
         # If source is a list or tuple of file paths, use it directly
         input_files = [f for f in source if f.suffix == ".mp4"]
         input_files.sort(key=lambda f: int(re.findall(r"\d+", f.stem)[0]))
-        
+
     print(f"input_files: {input_files}")
 
     # Get the width and height of the first video
     width, height = get_video_size(input_files[0].as_posix())
 
+    # If the height is not divisible by 2, add 1 to it
+    if height % 2 != 0:
+        height += 1
+
     # Calculate the number of videos
     num_videos = len(input_files)
 
+    # Calculate the total width
+    total_width = width * num_videos + (spacing * (num_videos - 1) if spacing else 0)
+
     # Create the filter_complex argument for the ffmpeg command
     filter_complex = "".join(
-        f"[{i}:v]{'transpose=2[s{i}];[s{i}]' if transpose else ''}scale=-1:{width}[v{i}];"
+        f"[{i}:v]{'transpose=2[s{i}];[s{i}]' if transpose else ''}scale=-1:{height}[v{i}];"
         + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
         for i in range(num_videos)
     )
-    filter_complex += f"{''.join(f'[v{i}]' for i in range(num_videos))}hstack=inputs={num_videos}[v]"
+    filter_complex += (
+        f"{''.join(f'[v{i}]' for i in range(num_videos))}hstack=inputs={num_videos}[v]"
+    )
 
     # Add padding and label if date and arena are provided
     if date and arena:
@@ -267,7 +283,7 @@ def create_horizontal_video(
     ]
     for input_file in input_files:
         ffmpeg_args.extend(["-i", str(input_file)])
-        
+
     # ffmpeg_args.append("-c:v")
     # ffmpeg_args.append("h264_nvenc")
 
@@ -283,7 +299,7 @@ def create_horizontal_video(
     subprocess.run(ffmpeg_args)
 
 
-def make_bundles(input_folder, output_folder, test_mode=False):
+def make_bundles(input_folder, output_folder, test_mode=False, keywords=None):
     """
     Groups videos by date and arena, and creates a horizontal video for each group.
 
@@ -305,7 +321,7 @@ def make_bundles(input_folder, output_folder, test_mode=False):
     subprocess.CalledProcessError
         If the ffmpeg command fails.
     """
-    
+
     # Convert input_folder and output_folder to Path objects
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
@@ -315,17 +331,33 @@ def make_bundles(input_folder, output_folder, test_mode=False):
         f for f in input_folder.glob(VIDEO_EXT) if f.stat().st_size > 300
     )
 
+    # If a keyword is provided, filter the video files by this keyword
+    if keywords:
+        video_files = [
+            vf for vf in video_files if all(keyword in vf.name for keyword in keywords)
+        ]
+
     # Group the video files by date, middle part, and arena
     video_groups = [
-        list(group) for _, group in groupby(
-            video_files, key=lambda f: (f.stem.split("_")[0], f.stem.split("_")[1:-3], f.stem.split("_")[-3])
+        list(group)
+        for _, group in groupby(
+            video_files,
+            key=lambda f: (
+                f.stem.split("_")[0],
+                f.stem.split("_")[1:-3],
+                f.stem.split("_")[-3],
+            ),
         )
     ]
 
     # Create a horizontal video for each group
     for i, group in enumerate(video_groups):
         # Get the date, middle part, and arena from the first video in the group
-        date, middle_part, arena = group[0].stem.split("_")[0], "_".join(group[0].stem.split("_")[1:-3]), group[0].stem.split("_")[-3]
+        date, middle_part, arena = (
+            group[0].stem.split("_")[0],
+            "_".join(group[0].stem.split("_")[1:-3]),
+            group[0].stem.split("_")[-3],
+        )
 
         # Sort the videos in the group by corridor number
         group.sort(key=lambda f: int(f.stem.split("_")[-1].replace("corridor", "")))
@@ -335,11 +367,12 @@ def make_bundles(input_folder, output_folder, test_mode=False):
         create_horizontal_video(
             source=group,
             output_path=output_path,
-            date=date,
-            arena=arena,
+            date=None,  # Testing without this
+            arena=None,
             test_mode=test_mode,
             transpose=ROTATE,
         )
+
 
 def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode=False):
     """
@@ -371,7 +404,10 @@ def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode
     # Convert input_folder to Path object and get all bundle files
     bundle_files = sorted(
         [f for f in Path(input_folder).glob(BUNDLE_KEYWORD)],
-        key=lambda f: (f.stem.split("_")[1], f.stem.split("_")[2])  # Sort by date and arena
+        key=lambda f: (
+            f.stem.split("_")[1],
+            f.stem.split("_")[2],
+        ),  # Sort by date and arena
     )
 
     # Create a horizontal video from the bundles without transposing them
@@ -386,7 +422,14 @@ def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode
     )
 
 
-def process_videos(input_folder, output_folder=None, output_path=None, test_mode=False):
+def process_videos(
+    input_folder,
+    output_folder=None,
+    output_path=None,
+    test_mode=False,
+    assemble=True,
+    keywords=None,
+):
     """
     Processes videos by making bundles, assembling them into a single video, and then removing the bundles.
 
@@ -425,33 +468,34 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
     processed_folder = output_folder / "processed"
 
     # Check if the "processed" directory exists
-    if processed_folder.exists():
+    if assemble and processed_folder.exists():
         print(f"The 'processed' directory already exists in {output_folder}.")
 
     # Create the "processed" directory
     processed_folder.mkdir(parents=True, exist_ok=True)
 
     # Check if the output video file already exists
-    if output_path.exists():
+    if assemble and output_path.exists():
         print(f"The video file {output_path} already exists.")
         return
 
     # Step 1: Make bundles
-    make_bundles(input_folder, output_folder, test_mode=test_mode)
-    
+    make_bundles(input_folder, output_folder, test_mode=test_mode, keywords=keywords)
+
     # Get the list of bundle files
     bundle_files = list(output_folder.glob(BUNDLE_KEYWORD))
 
-    if len(bundle_files) == 1:
-        # If there is only one bundle, rename it to the output file name
-        bundle_files[0].rename(output_path)
-    else:
-        # If there are multiple bundles, assemble them into a single video
-        assemble_bundles(output_folder, output_path, test_mode=test_mode)
+    if assemble:
+        if len(bundle_files) == 1:
+            # If there is only one bundle, rename it to the output file name
+            bundle_files[0].rename(output_path)
+        else:
+            # If there are multiple bundles, assemble them into a single video
+            assemble_bundles(output_folder, output_path, test_mode=test_mode)
 
-    # Step 3: Remove the bundles
-    for bundle_file in output_folder.glob(BUNDLE_KEYWORD):
-        bundle_file.unlink()
+        # Step 3: Remove the bundles
+        for bundle_file in output_folder.glob(BUNDLE_KEYWORD):
+            bundle_file.unlink()
 
 
 # Example usage:
@@ -484,11 +528,18 @@ def process_videos(input_folder, output_folder=None, output_path=None, test_mode
 # Find all folders in the input folder
 VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/MagnetBlock")
 
-Folders = [f for f in VideoFolder.iterdir() if f.is_dir()]
+Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "NoMagnet" in f.name]
 print(Folders)
+
+# print all .mP4 files in the folders that have 240522 in their name
+for folder in Folders:
+    print(f"Files in {folder}:")
+    for file in folder.glob("*.mp4"):
+        if "240522" in file.name and "corridor" in file.name:
+            print(file)
 
 # For each folder, process the videos
 for folder in Folders:
-    process_videos(folder)
+    process_videos(folder, assemble=False, keywords=["240522", "corridor"])
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 # TODO: Implement hardwareacceleration for the ffmpeg command.
