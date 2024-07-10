@@ -245,22 +245,45 @@ def create_horizontal_video(
 
     print(f"input_files: {input_files}")
 
-    # Get the width and height of the first video
-    width, height = get_video_size(input_files[0].as_posix())
-
-    # If the height is not divisible by 2, add 1 to it
-    if height % 2 != 0:
-        height += 1
-
     # Calculate the number of videos
     num_videos = len(input_files)
 
-    # Calculate the total width
-    total_width = width * num_videos + (spacing * (num_videos - 1) if spacing else 0)
+    # Get the width of each video and sum them to get the total width
+    widths, heights = zip(*[get_video_dimensions(f) for f in input_files])
+    total_width = sum(widths)
+
+    # If spacing is provided, add it to the total width
+    if spacing:
+        total_width += spacing * (num_videos - 1)
+
+    # If total_width is not a multiple of 2, subtract 1
+    if total_width % 2 != 0:
+        total_width -= 1
+
+    # Calculate the new width for each video
+    width = total_width // num_videos
+
+    # If the new width is not divisible by 2, subtract 1 from it
+    if width % 2 != 0:
+        width -= 1
+
+    # Calculate the new spacing
+    if spacing:
+        spacing = (total_width - width * num_videos) // (num_videos - 1)
+        # If the new spacing is not divisible by 2, subtract 1 from it
+        if spacing % 2 != 0:
+            spacing -= 1
+
+    # Get the height of the first video
+    height = heights[0]
+
+    # If height is not a multiple of 2, add 1 to make it even
+    if height % 2 != 0:
+        height += 1
 
     # Create the filter_complex argument for the ffmpeg command
     filter_complex = "".join(
-        f"[{i}:v]{'transpose=2[s{i}];[s{i}]' if transpose else ''}scale=-1:{height}[v{i}];"
+        f"[{i}:v]{'transpose=2[s{i}];[s{i}]' if transpose else ''}scale={width}:{height}[v{i}];"
         + (f"[v{i}]pad=iw+{spacing}:ih[v{i}];" if spacing else "")
         for i in range(num_videos)
     )
@@ -331,47 +354,56 @@ def make_bundles(input_folder, output_folder, test_mode=False, keywords=None):
         f for f in input_folder.glob(VIDEO_EXT) if f.stat().st_size > 300
     )
 
+    # Exclude videos that have "bundle" in their name
+    video_files = [f for f in video_files if "bundle" not in f.stem]
+
     # If a keyword is provided, filter the video files by this keyword
     if keywords:
         video_files = [
             vf for vf in video_files if all(keyword in vf.name for keyword in keywords)
         ]
 
-    # Group the video files by date, middle part, and arena
+    # Group the video files by date
     video_groups = [
         list(group)
         for _, group in groupby(
             video_files,
-            key=lambda f: (
-                f.stem.split("_")[0],
-                f.stem.split("_")[1:-3],
-                f.stem.split("_")[-3],
-            ),
+            key=lambda f: f.stem.split("_")[
+                0
+            ],  # Use the date part of the filename as the key
         )
     ]
 
     # Create a horizontal video for each group
     for i, group in enumerate(video_groups):
-        # Get the date, middle part, and arena from the first video in the group
-        date, middle_part, arena = (
-            group[0].stem.split("_")[0],
-            "_".join(group[0].stem.split("_")[1:-3]),
-            group[0].stem.split("_")[-3],
+
+        # Get the date from the first video in the group
+        date = group[0].stem.split("_")[0]
+
+        # Sort the videos in the group by arena and corridor number
+        group.sort(
+            key=lambda f: (
+                int(f.stem.split("_")[1].replace("arena", "")),
+                int(f.stem.split("_")[2].replace("corridor", "")),
+            )
         )
 
-        # Sort the videos in the group by corridor number
-        group.sort(key=lambda f: int(f.stem.split("_")[-1].replace("corridor", "")))
+        # Add an index to the output file name to differentiate between videos with the same date
+        output_path = output_folder / f"bundle_{date}_{i+1}.mp4"
 
-        # Add an index to the output file name to differentiate between videos with the same date, middle part, and arena
-        output_path = output_folder / f"bundle_{date}_{middle_part}_{arena}_{i+1}.mp4"
-        create_horizontal_video(
-            source=group,
-            output_path=output_path,
-            date=None,  # Testing without this
-            arena=None,
-            test_mode=test_mode,
-            transpose=ROTATE,
-        )
+        # If the output file already exists, skip this group
+        if output_path.exists():
+            print(f"The video file {output_path} already exists.")
+            continue
+        else:
+            create_horizontal_video(
+                source=group,
+                output_path=output_path,
+                date=None,  # Testing without this
+                arena=None,
+                test_mode=test_mode,
+                transpose=ROTATE,
+            )
 
 
 def assemble_bundles(input_folder, output_path, date=None, arena=None, test_mode=False):
@@ -526,20 +558,20 @@ def process_videos(
 # )
 
 # Find all folders in the input folder
-VideoFolder = Path("/mnt/labserver/DURRIEU_Matthias/Videos/MagnetBlock")
+VideoFolder = Path("/mnt/labserver/files/DURRIEU_Matthias/Videos/Demo")
 
-Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "NoMagnet" in f.name]
+Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "Demo" in f.name]
 print(Folders)
 
 # print all .mP4 files in the folders that have 240522 in their name
 for folder in Folders:
     print(f"Files in {folder}:")
     for file in folder.glob("*.mp4"):
-        if "240522" in file.name and "corridor" in file.name:
+        if "240606" in file.name and "corridor" in file.name:
             print(file)
 
 # For each folder, process the videos
 for folder in Folders:
-    process_videos(folder, assemble=False, keywords=["240522", "corridor"])
+    process_videos(folder, assemble=False)
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 # TODO: Implement hardwareacceleration for the ffmpeg command.
