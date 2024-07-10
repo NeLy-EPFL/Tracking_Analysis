@@ -113,14 +113,16 @@ def process_folder(in_folder):
 
     # Create a list of all the images in the target folder
     folder = inputfolder
+    image_files = sorted(folder.glob('*.jpg'))  # This assumes all images are .jpg files
+
     
     processedfolder = inputfolder.with_name(inputfolder.stem.replace("_Recorded", "_Processing"))
 
     # Create the subfolder if it doesn't exist
     processedfolder.mkdir(exist_ok=True)
 
-    # Load the first frame
-    frame = cv2.imread(inputfolder.joinpath("image104400.jpg").as_posix())
+    # Load the last frame
+    frame = cv2.imread(str(image_files[-1]))
 
     # If it's not already, make it grayscale
     if len(frame.shape) > 2:

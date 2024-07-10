@@ -115,9 +115,10 @@ for folder in data_folder.iterdir():
 
 script_dir = Path(__file__).resolve().parent
 
-CheckVideos_path = script_dir / "CheckVideos.sh"
-
-subprocess.run([str(CheckVideos_path)])
+conda_path = "/home/matthias/miniconda3/bin/activate"
+CheckVideos_path = script_dir / "CheckVideos.py"
+command = f". {conda_path} processing && python {CheckVideos_path}"
+subprocess.run(command, shell=True, executable="/bin/bash")
 
 # TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 

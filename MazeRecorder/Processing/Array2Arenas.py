@@ -143,19 +143,19 @@ def process_folder(in_folder):
 
     # Crop the image to the regions of interest
 
-    X1 = 0
+    X1 = 80
     X2 = 620
-    X3 = 1450
+    X3 = 1570
     X4 = 2130
-    X5 = 2980
-    X6 = 3590
+    X5 = 3080
+    X6 = 3600
 
-    Y1 = 0
-    Y2 = 725
-    Y3 = 1140
-    Y4 = 1860
-    Y5 = 2350
-    Y6 = 2995
+    Y1 = 30
+    Y2 = 600
+    Y3 = 1170
+    Y4 = 1750
+    Y5 = 2370
+    Y6 = 2900
 
     regions_of_interest = [
         (X1, Y1, X2, Y2),
