@@ -13,8 +13,21 @@ echo "datafolder: $datafolder"
 echo "model_path_ball: $model_path_ball"
 echo "model_path_fly: $model_path_fly"
 
-# Find all subdirectories in datafolder
-subdirs=$(find $datafolder -type d)
+if [ $# -eq 0 ]; then
+    # Find all subdirectories in datafolder
+    subdirs=$(find $datafolder -type d)
+else
+    # Arguments provided, use them as the list of directories to process
+    subdirs=()
+    for arg in "$@"; do
+        matched_dirs=$(find $datafolder -type d -name "$arg")
+        if [ -z "$matched_dirs" ]; then
+            echo "Warning: No directory found matching '$arg' in $datafolder"
+        else
+            subdirs+=($matched_dirs)
+        fi
+    done
+fi
 
 # For each subdirectory, check if .slp and .h5 files already exist
 for subdir in $subdirs; do

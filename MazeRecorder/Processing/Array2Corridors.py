@@ -111,15 +111,25 @@ def process_image(image, Corridors, folder, processedfolder):
 def process_folder(in_folder):
     inputfolder = in_folder
 
-    # Create a list of all the images in the target folder
     folder = inputfolder
-    image_files = sorted(folder.glob('*.jpg'))  # This assumes all images are .jpg files
 
-    
+    # Function to extract numerical value from filename for sorting
+    def extract_number(filename):
+        numbers = re.findall(r'\d+', filename.stem)
+        return int(numbers[0]) if numbers else 0
+
+    # Sort files numerically based on extracted number
+    image_files = sorted(inputfolder.glob('*.[jJ][pP][gG]'), key=extract_number)
+
+    if not image_files:
+        print("No image files found in the folder.")
+        return
+
     processedfolder = inputfolder.with_name(inputfolder.stem.replace("_Recorded", "_Processing"))
-
-    # Create the subfolder if it doesn't exist
     processedfolder.mkdir(exist_ok=True)
+
+    # Debugging: Print the last image file to be processed
+    print(f"Last image file to be processed: {image_files[-1]}")
 
     # Load the last frame
     frame = cv2.imread(str(image_files[-1]))
@@ -218,6 +228,11 @@ def process_folder(in_folder):
 
         bound_x = 30
         bound_y = 60
+        
+        # Before creating subcors, check if Colpos and Rowpos have the expected number of elements
+        expected_num_peaks = 12  # Adjust based on your expectations
+        if len(Colpos) < expected_num_peaks or len(Rowpos) < 2:
+            print(f"Warning: Found {len(Colpos)} column peaks and {len(Rowpos)} row peaks, expected at least {expected_num_peaks} column peaks and 2 row peaks. Skipping this subset.")
 
         subcors = [
             (
