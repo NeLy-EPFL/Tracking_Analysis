@@ -4,33 +4,36 @@
 source activate sleap
 
 # Set input and output paths
-datafolder="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Videos/"
-model_path_ball="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Labels/models/230602_141343.single_instance.n=108/"
-model_path_fly="/mnt/labserver/DURRIEU_Matthias/Experimental_data/MultiMazeRecorder/Sleap/Labels/Thorax_labels.v001.slp.training_job/models/230825_101219.single_instance/"
+datafolder="/mnt/upramdya_data/MD/MultiMazeRecorder/Videos/"
+model_path_ball="/mnt/upramdya_data/MD/MultiMazeRecorder/Sleap/Labels/models/230602_141343.single_instance.n=108/"
+model_path_fly="/mnt/upramdya_data/MD/MultiMazeRecorder/Sleap/Labels/Thorax_labels.v001.slp.training_job/models/230825_101219.single_instance/"
 
 # Print out the values of datafolder and model_path
 echo "datafolder: $datafolder"
 echo "model_path_ball: $model_path_ball"
 echo "model_path_fly: $model_path_fly"
 
-if [ $# -eq 0 ]; then
-    # Find all subdirectories in datafolder
-    subdirs=$(find $datafolder -type d)
-else
-    # Arguments provided, use them as the list of directories to process
-    subdirs=()
+# Collect all directories within datafolder
+subdirs=($(find "$datafolder" -type d))
+
+# If arguments are provided, filter subdirs to match those arguments
+if [ $# -gt 0 ]; then
+    filtered_subdirs=()
     for arg in "$@"; do
-        matched_dirs=$(find $datafolder -type d -name "$arg")
-        if [ -z "$matched_dirs" ]; then
-            echo "Warning: No directory found matching '$arg' in $datafolder"
-        else
-            subdirs+=($matched_dirs)
-        fi
+        for subdir in "${subdirs[@]}"; do
+            if [[ "$subdir" == *"$arg"* ]]; then
+                filtered_subdirs+=("$subdir")
+            fi
+        done
     done
+    subdirs=("${filtered_subdirs[@]}")
+    echo "directories to be processed: ${subdirs[@]}"
 fi
+#TODO: This is not working yet.
 
 # For each subdirectory, check if .slp and .h5 files already exist
-for subdir in $subdirs; do
+for subdir in "${subdirs[@]}"; do
+    echo "Processing directory: $subdir"
     # Only process directories that have been pre-processed or fully processed
     if [[ $subdir == *_Checked* ]]; then # || [[ $subdir == *_Tracked* ]] has been removed for efficiency
 
@@ -71,8 +74,8 @@ for subdir in $subdirs; do
     fi
 done
 
-script_dir="$(dirname "$0")"
+#script_dir="$(dirname "$0")"
 
 # Run check tracks python script
 
-python "$script_dir/CheckTracks.py"
+#python "$script_dir/CheckTracks.py"
