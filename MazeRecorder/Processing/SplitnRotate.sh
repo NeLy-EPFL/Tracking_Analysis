@@ -36,11 +36,34 @@ find "$input_dir" -type f -name "*.mp4" | while read -r input_file; do
         continue
     fi
 
+    # Read the orientation from metadata.json
+    metadata_file=$(dirname "$input_file")/metadata.json
+    if [[ -f "$metadata_file" ]]; then
+        # Extract the arena name from the file path
+        arena_name=$(basename "$(dirname "$input_file")")
+        # Read the orientation for the specific arena
+        orientation=$(jq -r --arg arena "$arena_name" '.[$arena][4]' "$metadata_file")
+    else
+        echo "Metadata file not found for $input_file. Skipping."
+        continue
+    fi
+
+    # Determine the filter based on orientation
+    if [[ "$orientation" == "hz" ]]; then
+        filter_complex="[0:v]transpose=1,split=2[left][right]; \
+                        [left]crop=iw/2:ih:0:0[left]; \
+                        [right]crop=iw/2:ih:iw/2:0,transpose=2,transpose=2[right]"
+    elif [[ "$orientation" == "std" ]]; then
+        filter_complex="[0:v]crop=iw/2:ih:0:0[left]; \
+                        [0:v]crop=iw/2:ih:iw/2:0,transpose=2,transpose=2[right]"
+    else
+        echo "Unknown orientation for $input_file. Skipping."
+        continue
+    fi
+
     # Process the video
-    echo "Processing $input_file..."
-    ffmpeg -loglevel error -i "$input_file" -filter_complex \
-        "[0:v]crop=iw/2:ih:0:0[left]; \
-     [0:v]crop=iw/2:ih:iw/2:0,transpose=2,transpose=2[right]" \
+    echo "Processing $input_file with orientation $orientation..."
+    ffmpeg -loglevel error -i "$input_file" -filter_complex "$filter_complex" \
         -map "[left]" "$left_output_file" -map "[right]" "$right_output_file" | pv -p -t -e -N "Processing $base_name"
 
     echo "Processed $input_file"
