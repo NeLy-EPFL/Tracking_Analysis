@@ -208,3 +208,6 @@ Utilities/__pycache__/HoloviewsTemplates.cpython-311.pyc
 Utilities/__pycache__/Optobot_utils.cpython-311.pyc
 Ball_Pushing/MazeRecorder/Analysis/geckodriver.log
 Ball_Pushing/MazeRecorder/Analysis/ghostdriver.log
+MazeRecorder/Processing/ffmpeg_log_2024-08-29_17-58-07.txt
+MazeRecorder/Processing/ffmpeg_log_2024-08-30_12-24-06.txt
+MazeRecorder/Processing/nohup.out

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # activate the right conda environment
-echo "$(date): Activating conda environment 'sleap_14'"
-source activate sleap_14
+echo "$(date): Activating conda environment 'sleap'"
+source activate sleap
 
 # Set input and output paths
 datafolder="/mnt/upramdya_data/MD/MultiMazeRecorder/Videos/"

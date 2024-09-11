@@ -36,6 +36,7 @@ def create_video_from_images(images_folder, output_folder, video_name, fps):
         now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
         # Use the date and time to create a unique log file name
         log_file_name = f"ffmpeg_log_{now_str}.txt"
+        # 
         terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
         try:
             with open(log_file_name, "w") as f:

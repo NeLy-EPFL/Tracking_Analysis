@@ -143,10 +143,10 @@ def process_folder(in_folder):
 
     # Crop the image to the regions of interest
 
-    X1 = 80
+    X1 = 90
     X2 = 620
-    X3 = 1570
-    X4 = 2130
+    X3 = 1590
+    X4 = 2110
     X5 = 3080
     X6 = 3600
 
@@ -222,6 +222,7 @@ def process_folder(in_folder):
 
 
 check_process(datafolder)
+#process_folder(datafolder / "240_F1_Recorded")
 
 
 if os.isatty(sys.stdin.fileno()):
