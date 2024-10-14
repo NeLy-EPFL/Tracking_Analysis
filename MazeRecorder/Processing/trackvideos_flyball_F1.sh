@@ -56,44 +56,43 @@ for subdir in "${subdirs[@]}"; do
             slp_file_fly=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_fly.slp")
             h5_file_fly=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_fly.h5")
 
-            # If .slp and .h5 files for ball do not exist, add to batch processing list
+            # If .slp and .h5 files for ball do not exist, add to processing list
             if [ -z "$slp_file_ball" ] && [ -z "$h5_file_ball" ]; then
+                echo "Adding $video to processing list for ball tracking."
                 videos_to_process+=("$video")
+            else
+                echo "Tracking files for ball already exist for $video. Skipping."
             fi
 
-            # If .slp and .h5 files for fly do not exist, add to batch processing list
+            # If .slp and .h5 files for fly do not exist, add to processing list
             if [ -z "$slp_file_fly" ] && [ -z "$h5_file_fly" ]; then
+                echo "Adding $video to processing list for fly tracking."
                 videos_to_process+=("$video")
+            else
+                echo "Tracking files for fly already exist for $video. Skipping."
             fi
         done
     fi
 done
 
-# Function to process videos in batches
-process_batch() {
-    local batch=("$@")
-    local batch_size=${#batch[@]}
-    echo "Processing batch of $batch_size videos..."
+# Process each video
+for video in "${videos_to_process[@]}"; do
+    video_name=$(basename "$video" .mp4)
+    output_folder=$(dirname "$video")
+    output_file_ball="${output_folder}/${video_name}_tracked_ball.slp"
+    output_file_fly="${output_folder}/${video_name}_tracked_fly.slp"
 
-    # Perform batch processing for ball tracking
-    sleap-track "${batch[@]}" --model $model_path_ball_centroid --model $model_path_ball_centered_instance --output "${datafolder}/tracked_ball.slp" --verbosity rich
-    sleap-convert "${datafolder}/tracked_ball.slp" --format analysis
+    # Perform tracking for ball
+    echo "Tracking ball for video: $video"
+    sleap-track "$video" --model "$model_path_ball_centroid" --model "$model_path_ball_centered_instance" --batch_size 16 --tracking.tracker simple --tracking.max_tracking 1 --tracking.max_tracks 2 --output "$output_file_ball" --verbosity rich
+    sleap-convert "$output_file_ball" --format analysis
+    echo "Ball tracking complete for video: $video"
 
-    # Perform batch processing for fly tracking
-    sleap-track "${batch[@]}" --model $model_path_fly --output "${datafolder}/tracked_fly.slp" --verbosity rich
-    sleap-convert "${datafolder}/tracked_fly.slp" --format analysis
-
-    echo "Batch processing complete."
-}
-
-# Define batch size
-batch_size=16
-
-# Split videos into batches and process each batch
-total_videos=${#videos_to_process[@]}
-for ((i=0; i<total_videos; i+=batch_size)); do
-    batch=("${videos_to_process[@]:i:batch_size}")
-    process_batch "${batch[@]}"
+    # Perform tracking for fly
+    echo "Tracking fly for video: $video"
+    sleap-track "$video" --model "$model_path_fly" --batch_size 16 --output "$output_file_fly" --verbosity rich
+    sleap-convert "$output_file_fly" --format analysis
+    echo "Fly tracking complete for video: $video"
 done
 
-echo "All batch processing complete."
+echo "All processing complete."
