@@ -84,7 +84,9 @@ for video in "${videos_to_process[@]}"; do
 
     # Perform tracking for ball
     echo "Tracking ball for video: $video"
-    sleap-track "$video" --model "$model_path_ball_centroid" --model "$model_path_ball_centered_instance" --batch_size 16 --tracking.tracker simple --tracking.max_tracking 1 --tracking.max_tracks 2 --output "$output_file_ball" --verbosity rich
+    sleap-track "$video" --model "$model_path_ball_centroid" --model "$model_path_ball_centered_instance" --batch_size 16 --max_instances 2 --output "$output_file_ball" --verbosity rich
+
+    # --tracking.tracker simple --tracking.max_tracking 1 --tracking.max_tracks 2 --tracking.target_instance_count 2
     sleap-convert "$output_file_ball" --format analysis
     echo "Ball tracking complete for video: $video"
 
