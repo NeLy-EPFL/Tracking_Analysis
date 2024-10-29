@@ -35,7 +35,7 @@ fi
 # Collect all videos to be processed
 videos_to_process=()
 
-# For each subdirectory, check if .slp and .h5 files already exist
+# For each subdirectory, check if .slp files already exist
 for subdir in "${subdirs[@]}"; do
     echo "Processing directory: $subdir"
     # Only process directories that have been pre-processed or fully processed
@@ -51,23 +51,21 @@ for subdir in "${subdirs[@]}"; do
             output_file_ball="${output_folder}/${video_name}_tracked_ball.slp"
             output_file_fly="${output_folder}/${video_name}_tracked_fly.slp"
 
-            slp_file_ball=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_ball.slp")
-            h5_file_ball=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_ball.h5")
-            slp_file_fly=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_fly.slp")
-            h5_file_fly=$(find $subdir -maxdepth 1 -type f -name "${video_name}_tracked_fly.h5")
+            slp_file_ball=$(find $subdir -maxdepth 1 -type f -name "*ball*.slp")
+            slp_file_fly=$(find $subdir -maxdepth 1 -type f -name "*fly*.slp")
 
-            # If .slp and .h5 files for ball do not exist, add to processing list
-            if [ -z "$slp_file_ball" ] && [ -z "$h5_file_ball" ]; then
+            # If no .slp files with "ball" in their name exist, add to processing list for ball tracking
+            if [ -z "$slp_file_ball" ]; then
                 echo "Adding $video to processing list for ball tracking."
-                videos_to_process+=("$video")
+                videos_to_process+=("$video:ball")
             else
                 echo "Tracking files for ball already exist for $video. Skipping."
             fi
 
-            # If .slp and .h5 files for fly do not exist, add to processing list
-            if [ -z "$slp_file_fly" ] && [ -z "$h5_file_fly" ]; then
+            # If no .slp files with "fly" in their name exist, add to processing list for fly tracking
+            if [ -z "$slp_file_fly" ]; then
                 echo "Adding $video to processing list for fly tracking."
-                videos_to_process+=("$video")
+                videos_to_process+=("$video:fly")
             else
                 echo "Tracking files for fly already exist for $video. Skipping."
             fi
@@ -76,25 +74,26 @@ for subdir in "${subdirs[@]}"; do
 done
 
 # Process each video
-for video in "${videos_to_process[@]}"; do
+for item in "${videos_to_process[@]}"; do
+    IFS=":" read -r video track_type <<< "$item"
     video_name=$(basename "$video" .mp4)
     output_folder=$(dirname "$video")
-    output_file_ball="${output_folder}/${video_name}_tracked_ball.slp"
-    output_file_fly="${output_folder}/${video_name}_tracked_fly.slp"
 
-    # Perform tracking for ball
-    echo "Tracking ball for video: $video"
-    sleap-track "$video" --model "$model_path_ball_centroid" --model "$model_path_ball_centered_instance" --batch_size 16 --max_instances 2 --output "$output_file_ball" --verbosity rich
-
-    # --tracking.tracker simple --tracking.max_tracking 1 --tracking.max_tracks 2 --tracking.target_instance_count 2
-    sleap-convert "$output_file_ball" --format analysis
-    echo "Ball tracking complete for video: $video"
-
-    # Perform tracking for fly
-    echo "Tracking fly for video: $video"
-    sleap-track "$video" --model "$model_path_fly" --batch_size 16 --output "$output_file_fly" --verbosity rich
-    sleap-convert "$output_file_fly" --format analysis
-    echo "Fly tracking complete for video: $video"
+    if [ "$track_type" == "ball" ]; then
+        output_file_ball="${output_folder}/${video_name}_tracked_ball.slp"
+        # Perform tracking for ball
+        echo "Tracking ball for video: $video"
+        sleap-track "$video" --model "$model_path_ball_centroid" --model "$model_path_ball_centered_instance" --batch_size 16 --max_instances 2 --output "$output_file_ball" --verbosity rich
+        # sleap-convert "$output_file_ball" --format analysis
+        echo "Ball tracking complete for video: $video"
+    elif [ "$track_type" == "fly" ]; then
+        output_file_fly="${output_folder}/${video_name}_tracked_fly.slp"
+        # Perform tracking for fly
+        echo "Tracking fly for video: $video"
+        sleap-track "$video" --model "$model_path_fly" --batch_size 16 --output "$output_file_fly" --verbosity rich
+        # sleap-convert "$output_file_fly" --format analysis
+        echo "Fly tracking complete for video: $video"
+    fi
 done
 
 echo "All processing complete."
