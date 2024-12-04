@@ -14,69 +14,92 @@ BUNDLE_KEYWORD = "*bundle*.mp4"
 ROTATE = False
 
 
-def get_video_size(video: Path) -> tuple:
+def get_video_size(video_path):
     """
-    Returns the width and height of the video at the given path.
+    Get the width and height of the video.
 
     Parameters
     ----------
-    video : Path
+    video_path : str
         The path to the video file.
 
     Returns
     -------
+    tuple
+        The width and height of the video.
+    """
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", video_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        return None
+    width, height = map(int, result.stdout.decode("utf-8").strip().split("x"))
+    return width, height
+
+def create_blank_video(width, height, output_path, duration=1, fps=30):
+    """
+    Create a blank video with the specified width, height, and duration.
+
+    Parameters
+    ----------
     width : int
         The width of the video.
     height : int
         The height of the video.
+    output_path : Path
+        The path to the output video file.
+    duration : int, optional
+        The duration of the video in seconds (default is 1).
+    fps : int, optional
+        The frames per second of the video (default is 30).
 
-    Returns None if there was an error.
+    Returns
+    -------
+    None
     """
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "csv=p=0",
-            str(video),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"Error running ffprobe on {video}: {result.stderr}")
-        return None
-    else:
-        try:
-            return tuple(map(int, result.stdout.strip().split(",")))
-        except ValueError:
-            print(f"Warning: Unable to get size of video {video}")
-            return None
-
-
-def create_blank_video(width, height, output_path):
     subprocess.run(
         [
             "ffmpeg",
-            "-f",
-            "lavfi",
-            "-i",
-            f"color=c=black:s={width}x{height}:d=1:r=25",
-            "-c:v",
-            "libx264",
-            "-tune",
-            "stillimage",
-            "-pix_fmt",
-            "yuv420p",
-            str(output_path),
+            "-f", "lavfi",
+            "-i", f"color=c=black:s={width}x{height}:d={duration}:r={fps}",
+            "-c:v", "libx264",
+            "-t", str(duration),
+            str(output_path)
         ]
     )
 
+def resize_video(input_path, output_path, width, height):
+    """
+    Resize the video to the specified width and height.
+
+    Parameters
+    ----------
+    input_path : Path
+        The path to the input video file.
+    output_path : Path
+        The path to the output video file.
+    width : int
+        The width of the output video.
+    height : int
+        The height of the output video.
+
+    Returns
+    -------
+    None
+    """
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-i", str(input_path),
+            "-vf", f"scale={width}:{height}",
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "slow",
+            str(output_path)
+        ]
+    )
 
 def create_grid_video(input_folder, output_path, keyword=None):
     """
@@ -106,7 +129,7 @@ def create_grid_video(input_folder, output_path, keyword=None):
     else:
         # If no keyword is provided, sort by numbers in file name
         input_files = sorted(
-            list(input_folder.glob(VIDEO_EXT)),
+            list(input_folder.glob("*.mp4")),
             key=lambda f: int(re.findall(r"\d+", f.stem)[0]),
         )
 
@@ -124,6 +147,14 @@ def create_grid_video(input_folder, output_path, keyword=None):
 
     # Get the width and height of the first video
     width, height = get_video_size(input_files[0].as_posix())
+
+    # Resize all videos to the same height
+    resized_files = []
+    for i, input_file in enumerate(input_files):
+        resized_file = input_folder / f"resized_{i}.mp4"
+        resize_video(input_file, resized_file, width, height)
+        resized_files.append(resized_file)
+    input_files = resized_files
 
     # Calculate the number of columns and rows for the grid layout
     num_videos = len(input_files)
@@ -558,20 +589,25 @@ def process_videos(
 # )
 
 # Find all folders in the input folder
-VideoFolder = Path("/mnt/labserver/files/DURRIEU_Matthias/Videos/Demo")
+VideoFolder = Path("/mnt/upramdya_data/MD/F1_Tracks/Other")
 
-Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "Demo" in f.name]
-print(Folders)
+# Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "Demo" in f.name]
+# print(Folders)
 
-# print all .mP4 files in the folders that have 240522 in their name
-for folder in Folders:
-    print(f"Files in {folder}:")
-    for file in folder.glob("*.mp4"):
-        if "240606" in file.name and "corridor" in file.name:
-            print(file)
+# # print all .mP4 files in the folders that have 240522 in their name
+# for folder in Folders:
+#     print(f"Files in {folder}:")
+#     for file in folder.glob("*.mp4"):
+#         if "240606" in file.name and "corridor" in file.name:
+#             print(file)
 
-# For each folder, process the videos
-for folder in Folders:
-    process_videos(folder, assemble=False)
+# # For each folder, process the videos
+# for folder in Folders:
+#     process_videos(folder, assemble=False)
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 # TODO: Implement hardwareacceleration for the ffmpeg command.
+
+create_grid_video(
+    input_folder=VideoFolder,
+    output_path="/mnt/upramdya_data/MD/F1_Tracks/Grid.mp4",
+)
