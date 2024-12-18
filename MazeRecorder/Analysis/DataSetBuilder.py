@@ -25,8 +25,8 @@ import re
 data_path = Utils.get_data_path()
 #experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241217_FinalEventCutoff_norm")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241217_FinalEventCutoffData_norm")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241218_FinalEventCutoff_norm")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241218_FinalEventCutoffData_norm")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
@@ -37,7 +37,13 @@ tnt_folders = [folder for folder in data_path.iterdir() if folder.is_dir() and '
 print(f" Folders to analyse : {tnt_folders}")
 
 # Define the list of metrics to generate datasets for
-metrics_list = ["coordinates", "contact_data", "summary", "F1_coordinates", "F1_summary", "F1_checkpoints", "Skeleton_contacts"]
+metrics_list = ["coordinates", 
+                "contact_data", 
+                "summary", 
+                # "F1_coordinates", 
+                # "F1_summary", 
+                # "F1_checkpoints", 
+                "Skeleton_contacts"]
 
 # Create directories for each metric
 for metric in metrics_list:
@@ -47,6 +53,18 @@ for metric in metrics_list:
 # For each folder, generate the experiment object and then make datasets out of it, then save them to feather
 for folder in tnt_folders:
     experiment_pkl_path = final_event_cutoff_path / f"{folder.name}.pkl"
+    
+    # Check if datasets need to be generated
+    datasets_needed = False
+    for metric in metrics_list:
+        dataset_path = final_event_cutoff_data_path / metric / f"{folder.name}_{metric}.feather"
+        if not dataset_path.exists():
+            datasets_needed = True
+            break
+    
+    if not datasets_needed:
+        print(f"All datasets for {folder.name} already exist. Skipping experiment.")
+        continue
     
     # Check if the experiment has already been generated as a .pkl file
     if experiment_pkl_path.exists():
