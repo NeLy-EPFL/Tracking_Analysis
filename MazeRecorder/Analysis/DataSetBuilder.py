@@ -23,10 +23,10 @@ import re
 
 # Get data path and TNT folders
 data_path = Utils.get_data_path()
-experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
+#experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241213_FinalEventCutoff")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241213_FinalEventCutoffData")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241218_FinalEventCutoff_norm")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241218_FinalEventCutoffData_norm")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
@@ -36,10 +36,35 @@ tnt_folders = [folder for folder in data_path.iterdir() if folder.is_dir() and '
 
 print(f" Folders to analyse : {tnt_folders}")
 
-# For each folder, generate the experiment object and then make a dataset out of it, then save it to feather
+# Define the list of metrics to generate datasets for
+metrics_list = ["coordinates", 
+                "contact_data", 
+                "summary", 
+                # "F1_coordinates", 
+                # "F1_summary", 
+                # "F1_checkpoints", 
+                "Skeleton_contacts"]
+
+# Create directories for each metric
+for metric in metrics_list:
+    metric_path = final_event_cutoff_data_path / metric
+    metric_path.mkdir(parents=True, exist_ok=True)
+
+# For each folder, generate the experiment object and then make datasets out of it, then save them to feather
 for folder in tnt_folders:
     experiment_pkl_path = final_event_cutoff_path / f"{folder.name}.pkl"
-    dataset_path = final_event_cutoff_data_path / f"{folder.name}_contact_data.feather"
+    
+    # Check if datasets need to be generated
+    datasets_needed = False
+    for metric in metrics_list:
+        dataset_path = final_event_cutoff_data_path / metric / f"{folder.name}_{metric}.feather"
+        if not dataset_path.exists():
+            datasets_needed = True
+            break
+    
+    if not datasets_needed:
+        print(f"All datasets for {folder.name} already exist. Skipping experiment.")
+        continue
     
     # Check if the experiment has already been generated as a .pkl file
     if experiment_pkl_path.exists():
@@ -60,67 +85,41 @@ for folder in tnt_folders:
             print(e)
             continue
     
-    # Check if the dataset exists
-    if dataset_path.exists():
-        print(f"Dataset {dataset_path} already exists. Skipping experiment {folder.name}")
-        continue
-    
-    # Generate the dataset from the experiment
-    try:
-        dataset = Ballpushing_utils.Dataset(experiment, dataset_type="contact_data")
-        dataset.data.to_feather(dataset_path)
-        print(f"Dataset {dataset_path.name} saved.")
-    except Exception as e:
-        print(f"Could not generate dataset for {folder.name}")
-        print(e)
-        continue
+    # Generate and save datasets for each metric
+    for metric in metrics_list:
+        dataset_path = final_event_cutoff_data_path / metric / f"{folder.name}_{metric}.feather"
+        
+        # Check if the dataset exists
+        if dataset_path.exists():
+            print(f"Dataset {dataset_path} already exists. Skipping experiment {folder.name} for metric {metric}")
+            continue
+        
+        # Generate the dataset from the experiment
+        try:
+            dataset = Ballpushing_utils.Dataset(experiment, dataset_type=metric)
+            if not dataset.data.empty:
+                dataset.data.to_feather(dataset_path)
+                print(f"Dataset {dataset_path.name} saved.")
+            else:
+                print(f"No data for {folder.name} with metric {metric}")
+        except Exception as e:
+            print(f"Could not generate dataset for {folder.name} with metric {metric}")
+            print(e)
+            continue
 
 # Then, concatenate all the datasets into one big dataset if the pooled dataset doesn't already exist
-pooled_dataset_path = final_event_cutoff_data_path / "241209_Pooled_contact_data.feather"
-if not pooled_dataset_path.exists():
-    try:
-        datasets = [pd.read_feather(file) for file in final_event_cutoff_data_path.iterdir() if file.suffix == ".feather"]
-        big_dataset = pd.concat(datasets)
-        big_dataset.to_feather(pooled_dataset_path)
-        print(f"Pooled dataset saved as {pooled_dataset_path}")
-    except Exception as e:
-        print(f"Could not concatenate datasets: {e}")
-else:
-    print(f"Pooled dataset {pooled_dataset_path} already exists.")
-
-# Exps = experiment_path.glob("*.pkl")
-
-# for experiment_path in Exps:
-#     print(f"loading {experiment_path}")
-    
-#     dataset_path = savepath / f"{experiment_path.stem}_contact_data.csv"
-    
-#     if dataset_path.exists():
-#         print(f"Dataset {dataset_path} already exists. Skipping experiment {experiment_path.stem}")
-#         continue
-    
-#     try:
-#         experiment = Ballpushing_utils.load_object(experiment_path)
-#     except Exception as e:
-#         print(f"Could not load experiment {experiment_path}")
-#         print(e)
-#         continue
-    
-#     try:
-#         dataset = Ballpushing_utils.Dataset(experiment, dataset_type="contact_data")
-#         dataset.data.to_csv(dataset_path)
-#         print(f"Dataset {dataset_path} saved.")
-#     except Exception as e:
-#         print(f"Could not generate dataset for {experiment_path.stem}")
-#         print(e)
-#         continue
-    
-
-# # Then, concatenate all the datasets into one big dataset
-
-# datasets = [pd.read_csv(file) for file in savepath.iterdir() if file.suffix == ".csv"]
-
-# big_dataset = pd.concat(datasets)
-
-# big_dataset.to_csv(savepath/"241206_Pooled_contact_data.csv")
-    
+for metric in metrics_list:
+    pooled_dataset_path = final_event_cutoff_data_path / metric / f"241209_Pooled_{metric}.feather"
+    if not pooled_dataset_path.exists():
+        try:
+            datasets = [pd.read_feather(file) for file in (final_event_cutoff_data_path / metric).iterdir() if file.suffix == ".feather"]
+            if datasets:
+                big_dataset = pd.concat(datasets)
+                big_dataset.to_feather(pooled_dataset_path)
+                print(f"Pooled dataset saved as {pooled_dataset_path}")
+            else:
+                print(f"No datasets found for metric {metric}")
+        except Exception as e:
+            print(f"Could not concatenate datasets for metric {metric}: {e}")
+    else:
+        print(f"Pooled dataset {pooled_dataset_path} already exists.")
