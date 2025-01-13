@@ -120,7 +120,7 @@ def create_grid_video(input_folder, output_path, keyword=None):
     """
     # Set the input folder path
     input_folder = Path(input_folder)
-
+    
     # Get all video files from the input folder
     if keyword:
         input_files = list(input_folder.glob(f"*{keyword}*.mp4"))
@@ -589,7 +589,7 @@ def process_videos(
 # )
 
 # Find all folders in the input folder
-VideoFolder = Path("/mnt/upramdya_data/MD/F1_Tracks/Other")
+# VideoFolder = Path("/mnt/upramdya_data/MD/F1_Tracks/Other")
 
 # Folders = [f for f in VideoFolder.iterdir() if f.is_dir() and "Demo" in f.name]
 # print(Folders)
@@ -607,7 +607,7 @@ VideoFolder = Path("/mnt/upramdya_data/MD/F1_Tracks/Other")
 # TODO: Implement this as a more general function that can create both horizontal and grid videos without having to duplicate code.
 # TODO: Implement hardwareacceleration for the ffmpeg command.
 
-create_grid_video(
-    input_folder=VideoFolder,
-    output_path="/mnt/upramdya_data/MD/F1_Tracks/Grid.mp4",
-)
+# create_grid_video(
+#     input_folder=VideoFolder,
+#     output_path="/mnt/upramdya_data/MD/F1_Tracks/Grid.mp4",
+# )
