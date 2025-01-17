@@ -25,8 +25,8 @@ import re
 data_path = Utils.get_data_path()
 #experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Coordinates/240110_coordinates")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Coordinates/240110_coordinates_Data")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240115_short_contacts_no_cutoff")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240115_short_contacts_no_cutoff_Data")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
@@ -37,9 +37,9 @@ tnt_folders = [folder for folder in data_path.iterdir() if folder.is_dir() and '
 print(f" Folders to analyse : {tnt_folders}")
 
 # Define the list of metrics to generate datasets for
-metrics_list = ["coordinates", 
+metrics_list = [#"coordinates", 
                 "contact_data", 
-                "summary", 
+                #"summary", 
                 # "F1_coordinates", 
                 # "F1_summary", 
                 # "F1_checkpoints", 
