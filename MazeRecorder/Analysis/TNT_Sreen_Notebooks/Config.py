@@ -144,7 +144,7 @@ def get_subset_data(
 
     control_nicknames_dict = registries["control_nicknames_dict"]
 
-    if nickname == "random":
+    if value == "random":
         # Pick one random Nickname and get a subset of it
         # Get unique Nicknames
 
@@ -155,7 +155,7 @@ def get_subset_data(
         nickname = np.random.choice(nicknames)
 
     else:
-        nickname = nickname
+        nickname = value
 
     print(f"Nickname selected: {nickname}")
 
@@ -225,7 +225,79 @@ def create_control_plot(data, control_nicknames, output_path):
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close(fig)
+    
+# Function to create and save KDE and ECDF plots
+def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, registries):
+    if brain_region == "Control":
+        # Special case: Plot all controls together
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # One row: KDE and ECDF side by side
+        
+        # Subset data for all control nicknames
+        control_data = data[data['Nickname'].isin(nicknames)]
+        
+        # KDE Plot
+        sns.histplot(data=control_data, x='start', hue="Nickname", ax=axes[0], element="step", kde=True)
+        axes[0].set_title('KDE: All Controls', fontsize=12)
+        axes[0].set_xlim(0, 3600)
+        axes[0].tick_params(labelsize=10)
+        
+        # ECDF Plot / cumulative distribution
+        sns.histplot(data=control_data, x='start', hue="Nickname", ax=axes[1], cumulative=True, element="step", kde=True)
+        axes[1].set_title('Cumulative distribution: All Controls', fontsize=12)
+        axes[1].set_xlim(0, 3600)
+        axes[1].tick_params(labelsize=10)
+        
+        # Add vertical line between KDE and ECDF
+        fig.add_subplot(111, frameon=False)
+        plt.vlines(x=0.5, ymin=0, ymax=1, transform=fig.transFigure, colors='black', linewidth=2)
+        plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+        
+    else:
+        # Default behavior for other brain regions
+        pairs_per_row = 3
+        n_nicknames = len(nicknames)
+        n_rows = math.ceil(n_nicknames / pairs_per_row)
+        n_cols = pairs_per_row * 2  # Two plots (KDE and ECDF) for each pair
+        
+        subplot_size = (10,6)  # Adjusted size for each subplot
+        fig_width, fig_height = subplot_size[0] * pairs_per_row, subplot_size[1] * n_rows
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height), squeeze=False)
+        
+        for i, nickname in enumerate(nicknames):
+            row = i // pairs_per_row
+            col = (i % pairs_per_row) * 2
+            
+            nickname_data = data[data['Nickname'] == nickname]
+            split_value = nickname_data['Split'].iloc[0]
+            associated_control = registries["control_nicknames_dict"][split_value]
+            control_data = data[data['Nickname'] == associated_control]
+            subset_data = pd.concat([nickname_data, control_data])
+            
+            # KDE Plot
+            sns.histplot(data=subset_data, x='start', hue='Brain region', ax=axes[row, col], kde=True, element="step", palette=color_dict)
+            axes[row, col].set_title(f'KDE: {nickname}\nvs {associated_control}', fontsize=10)
+            axes[row, col].set_xlim(0, 3600)
+            axes[row, col].tick_params(labelsize=8)
+            
+            # ECDF Plot
+            sns.histplot(data=subset_data, x='start', hue='Brain region', ax=axes[row, col+1], palette=color_dict, cumulative=True, element="step", kde=True)
+            axes[row, col+1].set_title(f'Cumulative: {nickname}\nvs {associated_control}', fontsize=10)
+            axes[row, col+1].set_xlim(0, 3600)
+            axes[row, col+1].tick_params(labelsize=8)
+        
+        # # Add vertical and horizontal separators
+        # for i in range(1, pairs_per_row):
+        #     plt.vlines(x=i/pairs_per_row, ymin=0, ymax=1, transform=fig.transFigure, colors='black', linewidth=2)
+        
+        # for i in range(1, n_rows):
+        #     plt.hlines(y=1-i/n_rows, xmin=0, xmax=1, transform=fig.transFigure, colors='black', linewidth=2)
+    
+    plt.subplots_adjust(hspace=0.4, wspace=0.4)  # Adjust spacing between subplots
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)  # Close the figure to free up memory
 
+    
 def plot_brain_region_data(
     data,
     output_dir,
