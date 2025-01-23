@@ -36,50 +36,39 @@ from utils_behavior import (
 
 import importlib
 
+from tqdm import tqdm
+
 
 datapath = Utils.get_data_server()
 
 # Import the Split registry
-
 SplitRegistry = pd.read_csv(datapath / "MD/Region_map_250116.csv")
-
 
 def map_split_registry(df):
     # Add the Split column from the SplitRegistry to the Disp_Data, merging based on the Genotype column, only keeping the Simplified Nickname and Split columns
-
     df = df.merge(
         SplitRegistry[["Genotype", "Simplified Nickname", "Split"]],
         on="Genotype",
         how="left",
     )
 
-    df.head()
     # Check for NA values in the Split column
-
-    df["Split"].isna().sum()
-    # Check which Nicknames have NA values in the Split column
-
-    df[df["Split"].isna()]["Nickname"].unique()
-
-    print(
-        f" The Nicknames with NA values in the Split column are: {df[df['Split'].isna()]['Nickname'].unique()}"
-    )
+    if df["Split"].isna().sum() > 0:
+        print(
+            f"The Nicknames with NA values in the Split column are: {df[df['Split'].isna()]['Nickname'].unique()}"
+        )
 
     return df
 
 
 def cleanup_data(df):
     # Remove the non-TNT data from the Disp_Data
-
     df = df[~df["Genotype"].isin(["M6", "M7", "PR", "CS"])]
-
     df = df[df["Brain region"] != "None"]
-
     return df
 
 
 # Prepare the control data for the analysis
-
 ## Manually create a color dictionary for the brain regions
 color_dict = {
     "MB": "#1f77b4",  # Blue
@@ -96,32 +85,28 @@ color_dict = {
 }
 
 
-def prepare_registries(df):
-
-    brain_regions = df["Brain region"].unique()
+def prepare_registries(SplitRegistry):
+    brain_regions = SplitRegistry["Simplified region"].unique()
     
     # Define the control region and get unique nicknames
     control_region = "Control"
-    control_nicknames = df[df["Brain region"] == control_region]["Nickname"].unique()
-    nicknames = df["Nickname"].unique()
+    control_nicknames = SplitRegistry[SplitRegistry["Simplified region"] == control_region]["Nickname"].unique()
+    nicknames = SplitRegistry["Nickname"].unique()
     nicknames = [
         nickname for nickname in nicknames if nickname not in control_nicknames
     ]
 
     # Combine all nicknames for consistent coloring
     all_nicknames = list(control_nicknames) + nicknames
-    # Define the control region and get unique nicknames
-    control_region = "Control"
     control_nicknames_dict = {"y": "Empty-Split", "n": "Empty-Gal4", "m": "TNTxPR"}
-    nicknames = df["Nickname"].unique()
+    nicknames = SplitRegistry["Nickname"].unique()
     nicknames = [
         nickname
         for nickname in nicknames
         if nickname not in control_nicknames_dict.values()
     ]
 
-    # Make a dictionnary with the generated variables
-
+    # Make a dictionary with the generated variables
     registries = {
         "brain_regions": brain_regions,
         "control_region": control_region,
@@ -134,56 +119,87 @@ def prepare_registries(df):
     return registries
 
 
-def get_subset_data(
-    df,
-    col="Nickname",
-    value="random",
-):
+registries = prepare_registries(SplitRegistry)
 
-    registries = prepare_registries(df)
-
+def get_subset_data(df, col="Nickname", value="random"): 
+    
     control_nicknames_dict = registries["control_nicknames_dict"]
-
+    
     if value == "random":
         # Pick one random Nickname and get a subset of it
-        # Get unique Nicknames
-
         nicknames = df["Nickname"].unique()
-
-        # Pick a random Nickname
-
         nickname = np.random.choice(nicknames)
-
     else:
         nickname = value
 
     print(f"Nickname selected: {nickname}")
 
+    # Check if 'Split' column exists
+    if 'Split' not in df.columns:
+        print("Error: 'Split' column not found in dataframe.")
+        return pd.DataFrame()
+
+    # Check if the nickname exists in the dataframe
+    if nickname not in df["Nickname"].values:
+        print(f"Nickname {nickname} not found in dataframe.")
+        return pd.DataFrame()
+
     # Get the associated control
+    split_value = SplitRegistry[SplitRegistry["Nickname"] == nickname]["Split"].iloc[0]
+    associated_control = control_nicknames_dict.get(split_value)
 
-    split_value = df[df["Nickname"] == nickname]["Split"].iloc[0]
+    if not associated_control:
+        print(f"No associated control found for split value {split_value}.")
+        return pd.DataFrame()
 
-    associated_control = control_nicknames_dict[split_value]
-
-    print(f"Associated control is : {associated_control}")
+    print(f"Associated control is: {associated_control}")
 
     # Get the subset of the data for the random Nickname
-
     subset_data = df[df["Nickname"] == nickname]
 
     # Get the subset of the data for the associated control
-
     control_data = df[df["Nickname"] == associated_control]
 
-    # Combine the nickname data with the relevant control data
+    # Check if either subset is empty and handle accordingly
+    if subset_data.empty:
+        print(f"No data found for nickname {nickname}.")
+    if control_data.empty:
+        print(f"No data found for associated control {associated_control}.")
 
+    # Combine the nickname data with the relevant control data
     subset_data = pd.concat([subset_data, control_data])
 
     return subset_data
 
-# Function to create and save plot
+def load_datasets_for_brain_region(brain_region, data_path, registries, downsample_factor=None):
+    # Load the dataset for the brain region
+    brain_region_file = data_path / f"{brain_region}.feather"
+    if not brain_region_file.exists():
+        print(f"Dataset for brain region {brain_region} not found.")
+        return pd.DataFrame()
 
-def create_and_save_plot(data, nicknames, brain_region, output_path, registries):
+    brain_region_data = pd.read_feather(brain_region_file)
+
+    # Load the dataset for the control region
+    control_region = registries["control_region"]
+    control_region_file = data_path / f"{control_region}.feather"
+    if not control_region_file.exists():
+        print(f"Dataset for control region {control_region} not found.")
+        return pd.DataFrame()
+
+    control_region_data = pd.read_feather(control_region_file)
+
+    # Combine the datasets
+    combined_data = pd.concat([brain_region_data, control_region_data], ignore_index=True)
+
+    # Downsample the data if downsample_factor is provided
+    if downsample_factor:
+        combined_data = combined_data.iloc[::downsample_factor, :]
+
+    return combined_data
+
+
+def create_and_save_plot(data, nicknames, brain_region, output_path, registries, show_progress=False):
     n_nicknames = len(nicknames)
     n_cols = 5
     n_rows = math.ceil(n_nicknames / n_cols)
@@ -193,7 +209,11 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height), squeeze=False)
     axes = axes.flatten()
     
-    for i, nickname in enumerate(nicknames):
+    iterator = enumerate(nicknames)
+    if show_progress:
+        iterator = tqdm(iterator, total=n_nicknames, desc="Creating subplots")
+    
+    for i, nickname in iterator:
         nickname_data = data[data['Nickname'] == nickname]
         split_value = nickname_data['Split'].iloc[0]
         associated_control = registries["control_nicknames_dict"][split_value]
@@ -211,20 +231,6 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries)
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close(fig)  # Close the figure to free up memory
-
-def create_control_plot(data, control_nicknames, output_path):
-    fig, ax = plt.subplots(figsize=(18, 18))
-    
-    for nickname in control_nicknames:
-        nickname_data = data[data['Nickname'] == nickname]
-        sns.lineplot(data=nickname_data, x='time', y='distance_ball_0', label=nickname, ax=ax, palette=color_dict)
-    
-    ax.set_title('Control Nicknames')
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Median Euclidean Distance')
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close(fig)
     
 # Function to create and save KDE and ECDF plots
 def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, registries):
@@ -296,106 +302,3 @@ def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, re
     plt.subplots_adjust(hspace=0.4, wspace=0.4)  # Adjust spacing between subplots
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close(fig)  # Close the figure to free up memory
-
-    
-def plot_brain_region_data(
-    data,
-    output_dir,
-    control_nicknames_dict,
-    color_dict,
-    x_col,
-    y_col,
-    metric=None,
-    plot_type="line",
-    n_cols=5,
-    figsize=(20, 10),
-):
-    """
-    Generic function to plot data for different Brain regions and Nicknames.
-
-    Parameters:
-        data (pd.DataFrame): The input data containing columns 'Brain region', 'Nickname', 'Split', etc.
-        output_dir (str): Directory to save the plots.
-        control_nicknames_dict (dict): Maps Split values to control nicknames.
-        color_dict (dict): Maps Brain regions to colors.
-        x_col (str): Column for the x-axis.
-        y_col (str): Column for the y-axis.
-        metric (str, optional): Additional metric for specific plot types (e.g., scatterplot).
-        plot_type (str): Type of plot ('line' or 'scatter').
-        n_cols (int): Number of columns in the subplot grid.
-        figsize (tuple): Figure size.
-
-    Returns:
-        None
-    """
-    # Group data by Brain region
-    brain_regions = data["Brain region"].unique()
-
-    for brain_region in brain_regions:
-        # Create directory for the current Brain region if it doesn't exist
-        directory = os.path.join(output_dir, brain_region)
-        os.makedirs(directory, exist_ok=True)
-
-        # Subset data for the current Brain region
-        region_data = data[data["Brain region"] == brain_region]
-
-        # Get unique nicknames for the Brain region
-        nicknames = region_data["Nickname"].unique()
-
-        # Calculate rows and columns for subplots
-        n_nicknames = len(nicknames)
-        n_rows = math.ceil(n_nicknames / n_cols)
-
-        # Create figure and axes
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
-        axes = axes.flatten()
-
-        for i, nickname in enumerate(nicknames):
-            # Subset data for the current nickname
-            nickname_data = region_data[region_data["Nickname"] == nickname]
-
-            # Determine associated control group
-            split_value = nickname_data["Split"].iloc[0]
-            associated_control = control_nicknames_dict[split_value]
-
-            # Subset data for the control group
-            control_data = data[data["Nickname"] == associated_control]
-
-            # Combine nickname and control data
-            subset_data = pd.concat([nickname_data, control_data])
-
-            # Plot based on specified type
-            if plot_type == "line":
-                sns.lineplot(
-                    data=subset_data,
-                    x=x_col,
-                    y=y_col,
-                    hue="Brain region",
-                    ax=axes[i],
-                    palette=color_dict,
-                )
-            elif plot_type == "scatter":
-                sns.scatterplot(
-                    data=subset_data,
-                    x=x_col,
-                    y=y_col,
-                    hue="Brain region",
-                    ax=axes[i],
-                    palette=color_dict,
-                )
-
-            # Set title and labels
-            axes[i].set_title(f"{nickname} vs {associated_control}")
-            axes[i].set_xlabel(x_col)
-            axes[i].set_ylabel(y_col)
-
-        # Remove unused subplots
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-
-        # Adjust layout and save figure
-        plt.tight_layout()
-        plot_path = os.path.join(directory, f"{brain_region}_plots.png")
-        plt.savefig(plot_path)
-
-        plt.show()
