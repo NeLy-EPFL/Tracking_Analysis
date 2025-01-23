@@ -25,8 +25,8 @@ import re
 data_path = Utils.get_data_path()
 #experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240120_short_contacts_no_cutoff_no_downsample")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240120_short_contacts_no_cutoff_no_downsample_Data")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240115_short_contacts_no_cutoff")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240115_short_contacts_no_cutoff_Data")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
@@ -37,7 +37,7 @@ tnt_folders = [folder for folder in data_path.iterdir() if folder.is_dir() and '
 print(f" Folders to analyse : {tnt_folders}")
 
 # Define the list of metrics to generate datasets for
-metrics_list = ["coordinates", 
+metrics_list = [#"coordinates", 
                 "contact_data", 
                 #"summary", 
                 # "F1_coordinates", 
@@ -108,31 +108,19 @@ for folder in tnt_folders:
             print(e)
             continue
 
-# Function to concatenate datasets in chunks
-def concatenate_datasets_in_chunks(metric, chunk_size=5):
-    metric_path = final_event_cutoff_data_path / metric
-    feather_files = [file for file in metric_path.iterdir() if file.suffix == ".feather"]
-    
-    if not feather_files:
-        print(f"No datasets found for metric {metric}")
-        return
-    
-    pooled_dataset_path = metric_path / f"Pooled_{metric}.feather"
-    
-    if pooled_dataset_path.exists():
-        print(f"Pooled dataset {pooled_dataset_path} already exists.")
-        return
-    
-    chunked_datasets = []
-    for i in range(0, len(feather_files), chunk_size):
-        chunk_files = feather_files[i:i + chunk_size]
-        chunk_datasets = [pd.read_feather(file) for file in chunk_files]
-        chunked_datasets.append(pd.concat(chunk_datasets))
-    
-    big_dataset = pd.concat(chunked_datasets)
-    big_dataset.to_feather(pooled_dataset_path)
-    print(f"Pooled dataset saved as {pooled_dataset_path}")
-
 # Then, concatenate all the datasets into one big dataset if the pooled dataset doesn't already exist
 for metric in metrics_list:
-    concatenate_datasets_in_chunks(metric)
+    pooled_dataset_path = final_event_cutoff_data_path / metric / f"250106_Pooled_{metric}.feather"
+    if not pooled_dataset_path.exists():
+        try:
+            datasets = [pd.read_feather(file) for file in (final_event_cutoff_data_path / metric).iterdir() if file.suffix == ".feather"]
+            if datasets:
+                big_dataset = pd.concat(datasets)
+                big_dataset.to_feather(pooled_dataset_path)
+                print(f"Pooled dataset saved as {pooled_dataset_path}")
+            else:
+                print(f"No datasets found for metric {metric}")
+        except Exception as e:
+            print(f"Could not concatenate datasets for metric {metric}: {e}")
+    else:
+        print(f"Pooled dataset {pooled_dataset_path} already exists.")
