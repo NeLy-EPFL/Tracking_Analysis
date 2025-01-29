@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import h5py
 
+from scipy import stats
 from scipy.stats import gaussian_kde
 from scipy.ndimage import label
 from sklearn.cluster import DBSCAN
@@ -35,6 +36,8 @@ from utils_behavior import (
 )
 
 import importlib
+from statsmodels.stats.multitest import multipletests
+
 
 from tqdm import tqdm
 
@@ -198,8 +201,125 @@ def load_datasets_for_brain_region(brain_region, data_path, registries, downsamp
 
     return combined_data
 
+def preprocess_data(data, bins=10):
+    """
+    Prepare a simplified dataset by splitting the data into n time bins and computing the average and median distance for each bin. It should be done individually for each fly.
 
-def create_and_save_plot(data, nicknames, brain_region, output_path, registries, show_progress=False):
+    Args:
+        data (pd.DataFrame): The input data containing 'time', 'Brain region', 'fly', and 'distance_ball_0'.
+        bins (int, optional): The number of time bins to split the data into. Default is 10.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the average and median distance for each time bin, brain region, and fly.
+    """
+    # Create a new column 'time_bin' that indicates the time bin each 'time' value belongs to
+    data['time_bin'] = pd.cut(data['time'], bins=bins, labels=False)
+
+    # Group by 'time_bin', 'Brain region', and 'fly' and compute the average and median distance for each group
+    avg_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].mean().reset_index()
+    avg_distance.columns = ['time_bin', 'Brain region', 'fly', 'avg_distance']
+
+    median_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].median().reset_index()
+    median_distance.columns = ['time_bin', 'Brain region', 'fly', 'median_distance']
+
+    # Merge the average and median distance dataframes
+    processed_data = avg_distance.merge(median_distance, on=['time_bin', 'Brain region', 'fly'])
+
+    return processed_data
+
+def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False, method='custom'):
+    """
+    Compute permutation test on the given data subset using either a custom implementation or SciPy's permutation_test.
+    
+    Args:
+    data (pd.DataFrame): The input data containing 'Brain region', 'time', and the specified metric.
+    metric (str): The name of the column to analyze (e.g., 'distance_ball_0').
+    n_permutations (int): Number of permutations for the test.
+    show_progress (bool): Whether to show a progress bar during permutations.
+    verbose (bool): Whether to print additional information.
+    method (str): 'custom' for the custom implementation or 'scipy' for SciPy's permutation_test.
+    
+    Returns:
+    dict: A dictionary containing the results of the permutation test.
+    """
+    # Split the data by Brain region
+    Focal = data[data["Brain region"] != "Control"]
+    Control = data[data["Brain region"] == "Control"]
+    
+    if verbose:
+        print(f"Number of Focal data points: {len(Focal)}")
+        print(f"Number of Control data points: {len(Control)}")
+
+    # Compute average metric grouped by time
+    Focal_avg = Focal[metric].groupby(Focal["time_bin"]).mean()
+    Ctrl_avg = Control[metric].groupby(Control["time_bin"]).mean()
+    
+    if verbose:
+        print(f"Number of Focal timepoints: {len(Focal_avg)}")
+        print(f"Number of Control timepoints: {len(Ctrl_avg)}")
+        print(f"{Focal_avg.head()}")
+        print(f"{Ctrl_avg.head()}")
+    
+    # Ensure both series have the same time index
+    common_index = Focal_avg.index.intersection(Ctrl_avg.index)
+    Focal_avg = Focal_avg.loc[common_index]
+    Ctrl_avg = Ctrl_avg.loc[common_index]
+
+    if method == 'custom':
+        # Convert series to DataFrames
+        Focal_df = pd.DataFrame(Focal_avg)
+        Ctrl_df = pd.DataFrame(Ctrl_avg)
+
+        # Perform custom permutation test
+        observed_diff, p_values = Processing.permutation_test(Focal_df, Ctrl_df, n_permutations)
+    elif method == 'scipy':
+        # Define the test statistic function
+        def test_statistic(x, y):
+            return np.mean(x) - np.mean(y)
+
+        # Perform SciPy's permutation test
+        result = stats.permutation_test((Focal_avg, Ctrl_avg), test_statistic, 
+                                        n_resamples=n_permutations, 
+                                        alternative='two-sided')
+        observed_diff = result.statistic
+        p_values = np.full(len(Focal_avg), result.pvalue)
+    else:
+        raise ValueError("Invalid method. Choose 'custom' or 'scipy'.")
+
+    # Analyze results
+    significance_level = 0.05
+    significant_timepoints = np.where(p_values < significance_level)[0]
+
+    # Apply multiple testing correction
+    rejected, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
+    significant_timepoints_corrected = np.where(rejected)[0]
+
+    # Prepare results
+    results = {
+        'observed_diff': observed_diff,
+        'p_values': p_values,
+        'significant_timepoints': significant_timepoints,
+        'p_values_corrected': p_values_corrected,
+        'significant_timepoints_corrected': significant_timepoints_corrected,
+        'n_significant': len(significant_timepoints),
+        'percent_significant': len(significant_timepoints) / len(p_values) * 100,
+        'n_significant_corrected': len(significant_timepoints_corrected),
+        'percent_significant_corrected': len(significant_timepoints_corrected) / len(p_values) * 100
+    }
+    
+    if verbose:
+        print(f"Observed difference: {observed_diff}")
+        print(f"Significant timepoints: {significant_timepoints}")
+        print(f"Significant timepoints (corrected): {significant_timepoints_corrected}")
+
+    return results
+
+
+
+def create_and_save_plot(data, nicknames, brain_region, output_path, registries, show_signif=False, show_progress=False, test_nickname=None):
+    if test_nickname:
+        nicknames = [test_nickname]
+    
     n_nicknames = len(nicknames)
     n_cols = 5
     n_rows = math.ceil(n_nicknames / n_cols)
@@ -220,10 +340,35 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries,
         control_data = data[data['Nickname'] == associated_control]
         subset_data = pd.concat([nickname_data, control_data])
         
+        print(f"Processing {nickname} vs {associated_control}")
+        
+        # Preprocess the data for permutation test
+        preprocessed_data = preprocess_data(subset_data, bins=8)
+        
+        if show_signif:
+            permutation = compute_permutation_test(preprocessed_data, 'median_distance', n_permutations=1000, show_progress=show_progress, verbose=False, method='scipy')
+            
+            # Add the 'Significant' column to the preprocessed data
+            preprocessed_data['Significant'] = preprocessed_data['time_bin'].isin(permutation['significant_timepoints_corrected'])
+        
+        # Plot the raw data
         sns.lineplot(data=subset_data, x='time', y='distance_ball_0', hue='Brain region', ax=axes[i], palette=color_dict)
-        axes[i].set_title(f'{nickname} vs {associated_control}')
-        axes[i].set_xlabel('Time (s)')
-        axes[i].set_ylabel('Median Euclidean Distance')
+        
+        # Highlight significant timepoints with a red background
+        if show_signif:
+            try:
+                significant_bins = preprocessed_data[preprocessed_data['Significant']]['time_bin']
+                for time_bin in significant_bins:
+                    bin_start = subset_data['time'].min() + time_bin * (subset_data['time'].max() - subset_data['time'].min()) / 10
+                    bin_end = bin_start + (subset_data['time'].max() - subset_data['time'].min()) / 10
+                    axes[i].axvspan(bin_start, bin_end, color='red', alpha=0.3)
+                
+                axes[i].set_title(f'{nickname} vs {associated_control}')
+                axes[i].set_xlabel('Time (s)')
+                axes[i].set_ylabel('Distance Ball 0')
+            
+            except Exception as e:
+                print(f"Error: {e}")
     
     for j in range(i + 1, len(axes)):
         fig.delaxes(axes[j])
@@ -300,5 +445,74 @@ def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, re
         #     plt.hlines(y=1-i/n_rows, xmin=0, xmax=1, transform=fig.transFigure, colors='black', linewidth=2)
     
     plt.subplots_adjust(hspace=0.4, wspace=0.4)  # Adjust spacing between subplots
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)  # Close the figure to free up memory
+    
+def create_and_save_contact_rate_plot(data, nicknames, brain_region, output_path, registries, color_dict):
+    # Define the time window (e.g., 100 seconds)
+    time_window = 100
+
+    # Determine the maximum time in the dataset
+    max_time = data['start'].max()
+
+    # Create bins for the time windows
+    bins = np.arange(0, max_time + time_window, time_window)
+
+    # Create a new column 'time_window' that indicates the time window each 'start' time belongs to
+    data['time_window'] = pd.cut(data['start'], bins=bins, right=False, labels=bins[:-1])
+
+    if brain_region == "Control":
+        # Special case: Plot all controls together
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        # Subset data for all control nicknames
+        control_data = data[data['Nickname'].isin(nicknames)]
+        
+        # Group by 'time_window', 'Nickname', and 'fly' and count the number of unique contacts in each time window
+        contact_rate = control_data.groupby(['time_window', 'Nickname', 'fly'])['identifier'].nunique().reset_index()
+        contact_rate.columns = ['time_window', 'Nickname', 'fly', 'contact_count']
+        
+        # Plot the contact rate over time with confidence intervals
+        sns.lineplot(data=contact_rate, x='time_window', y='contact_count', hue='Nickname', marker='o', ax=ax, ci='sd')
+        ax.set_title('Contact Rate Over Time: All Controls', fontsize=12)
+        ax.set_xlabel('Time Window (s)')
+        ax.set_ylabel('Number of Unique Contacts')
+        ax.tick_params(labelsize=10)
+        
+    else:
+        # Default behavior for other brain regions
+        pairs_per_row = 3
+        n_nicknames = len(nicknames)
+        n_rows = math.ceil(n_nicknames / pairs_per_row)
+        
+        subplot_size = (10, 6)  # Adjusted size for each subplot
+        fig_width, fig_height = subplot_size[0] * pairs_per_row, subplot_size[1] * n_rows
+        
+        fig, axes = plt.subplots(n_rows, pairs_per_row, figsize=(fig_width, fig_height), squeeze=False)
+        
+        for i, nickname in enumerate(nicknames):
+            row = i // pairs_per_row
+            col = i % pairs_per_row
+            
+            nickname_data = data[data['Nickname'] == nickname]
+            split_value = nickname_data['Split'].iloc[0]
+            associated_control = registries["control_nicknames_dict"][split_value]
+            control_data = data[data['Nickname'] == associated_control]
+            subset_data = pd.concat([nickname_data, control_data])
+            
+            # Group by 'time_window', 'Brain region', and 'fly' and count the number of unique contacts in each time window
+            contact_rate = subset_data.groupby(['time_window', 'Brain region', 'fly'])['identifier'].nunique().reset_index()
+            contact_rate.columns = ['time_window', 'Brain region', 'fly', 'contact_count']
+            
+            # Plot the contact rate over time with confidence intervals
+            sns.lineplot(data=contact_rate, x='time_window', y='contact_count', hue='Brain region', 
+                         marker='o', palette=color_dict, ci='sd', ax=axes[row, col])
+            axes[row, col].set_title(f'{nickname} vs {associated_control}', fontsize=10)
+            axes[row, col].set_xlabel('Time Window (s)')
+            axes[row, col].set_ylabel('Number of Unique Contacts')
+            axes[row, col].tick_params(labelsize=8)
+            axes[row, col].legend(title='Brain region', fontsize=8, title_fontsize=8)
+    
+    plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close(fig)  # Close the figure to free up memory
