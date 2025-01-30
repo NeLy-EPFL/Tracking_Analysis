@@ -46,7 +46,7 @@ from tqdm import tqdm
 datapath = Utils.get_data_server()
 
 # Import the Split registry
-SplitRegistry = pd.read_csv(datapath / "MD/Region_map_250116.csv")
+SplitRegistry = pd.read_csv(datapath / "MD/Region_map_250130.csv")
 
 # Downsampling if any
 
@@ -215,6 +215,11 @@ def load_datasets_for_brain_region(brain_region, data_path, registries, downsamp
 
     control_region_data = pd.read_feather(control_region_file)
 
+    if brain_region_data.empty: 
+        raise ValueError(f"Empty dataset for {brain_region}")
+    if control_region_data.empty:
+        raise ValueError(f"Empty control dataset")
+    
     # Combine the datasets
     combined_data = pd.concat([brain_region_data, control_region_data], ignore_index=True)
 
