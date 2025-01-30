@@ -253,69 +253,62 @@ def preprocess_data(data, bins=10):
     return processed_data
 
 def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False):
-    Focal = data[data["Brain region"] != "Control"]
-    Control = data[data["Brain region"] == "Control"]
-    
-    if verbose:
-        print(f"Number of Focal data points: {len(Focal)}")
-        print(f"Number of Control data points: {len(Control)}")
+    """
+    Improved permutation test using individual datapoints
+    """
+    # Split data without pre-averaging
+    focal_raw = data[data["Brain region"] != "Control"]
+    control_raw = data[data["Brain region"] == "Control"]
 
-    # Group by time_bin and fly
-    Focal_grouped = Focal.groupby(['time_bin', 'fly'])[metric].mean().unstack()
-    Ctrl_grouped = Control.groupby(['time_bin', 'fly'])[metric].mean().unstack()
-    
-    if verbose:
-        print(f"Number of Focal timepoints: {len(Focal_grouped)}")
-        print(f"Number of Control timepoints: {len(Ctrl_grouped)}")
-        print(f"{Focal_grouped.head()}")
-        print(f"{Ctrl_grouped.head()}")
-
-    observed_diffs = Focal_grouped.mean(axis=1) - Ctrl_grouped.mean(axis=1)
-    
+    # Initialize storage for results
     p_values = []
-    for time_bin in Focal_grouped.index:
-        focal_bin = Focal_grouped.loc[time_bin]
-        ctrl_bin = Ctrl_grouped.loc[time_bin]
+    observed_diffs = []
+    time_bins = sorted(data['time_bin'].unique())
+
+    for time_bin in time_bins:
+        # Get all individual measurements for this time bin
+        focal = focal_raw[focal_raw['time_bin'] == time_bin][metric].values
+        control = control_raw[control_raw['time_bin'] == time_bin][metric].values
         
-        observed_diff = focal_bin.mean() - ctrl_bin.mean()
-        combined = np.concatenate([focal_bin, ctrl_bin])
-        n_focal = len(focal_bin)
+        # Calculate observed difference
+        obs_diff = np.mean(focal) - np.mean(control)
+        observed_diffs.append(obs_diff)
         
-        perm_diffs = []
+        # Handle edge cases
+        if len(focal) == 0 or len(control) == 0:
+            p_values.append(1.0)
+            continue
+
+        # Combined data pool
+        combined = np.concatenate([focal, control])
+        n_focal = len(focal)
+        
+        # Permutation test
+        extreme_count = 0
         for _ in range(n_permutations):
-            perm = np.random.permutation(combined)
-            perm_diff = perm[:n_focal].mean() - perm[n_focal:].mean()
-            perm_diffs.append(perm_diff)
-        
-        p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff))
-        p_values.append(p_value)
+            np.random.shuffle(combined)
+            perm_diff = np.mean(combined[:n_focal]) - np.mean(combined[n_focal:])
+            if np.abs(perm_diff) >= np.abs(obs_diff):
+                extreme_count += 1
+                
+        p_values.append(extreme_count / n_permutations)
 
-    p_values = np.array(p_values)
-    
-    # Apply multiple testing correction
+    # Multiple testing correction
     _, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
-    
-    significant_timepoints = np.where(p_values < 0.05)[0]
-    significant_timepoints_corrected = np.where(p_values_corrected < 0.05)[0]
 
+    # Format results
     results = {
-        'observed_diff': observed_diffs,
-        'p_values': p_values,
-        'significant_timepoints': significant_timepoints,
+        'observed_diff': np.array(observed_diffs),
+        'p_values': np.array(p_values),
         'p_values_corrected': p_values_corrected,
-        'significant_timepoints_corrected': significant_timepoints_corrected,
-        'n_significant': len(significant_timepoints),
-        'percent_significant': len(significant_timepoints) / len(p_values) * 100,
-        'n_significant_corrected': len(significant_timepoints_corrected),
-        'percent_significant_corrected': len(significant_timepoints_corrected) / len(p_values) * 100
+        'significant_timepoints_corrected': np.where(p_values_corrected < 0.05)[0],
+        'time_bins': time_bins
     }
-    
+
     if verbose:
-        print(f"Observed differences: {observed_diffs}")
-        print(f"P-values: {p_values}")
-        print(f"Significant timepoints: {significant_timepoints}")
-        print(f"P-values (corrected): {p_values_corrected}")
-        print(f"Significant timepoints (corrected): {significant_timepoints_corrected}")
+        print("Time Bin | Observed Diff | Raw p-value | Corrected p-value")
+        for i, bin in enumerate(time_bins):
+            print(f"{bin:8} | {observed_diffs[i]:+0.3f} | {p_values[i]:0.4f} | {p_values_corrected[i]:0.4f}")
 
     return results
 
