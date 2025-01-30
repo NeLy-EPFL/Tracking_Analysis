@@ -41,11 +41,34 @@ from statsmodels.stats.multitest import multipletests
 
 from tqdm import tqdm
 
+### Configuration for the analysis
 
 datapath = Utils.get_data_server()
 
 # Import the Split registry
 SplitRegistry = pd.read_csv(datapath / "MD/Region_map_250116.csv")
+
+# Downsampling if any
+
+downsampling_factor = None
+
+# Statistics
+
+show_signif = True
+
+# Data binning
+
+data_bins = 10
+
+# Permutation test parameters
+
+permutation_method = "scipy"
+
+permutation_metric = "avg_distance"
+
+n_permutations = 1000
+
+error_logs = True
 
 def map_split_registry(df):
     # Add the Split column from the SplitRegistry to the Disp_Data, merging based on the Genotype column, only keeping the Simplified Nickname and Split columns
@@ -215,6 +238,8 @@ def preprocess_data(data, bins=10):
     # Create a new column 'time_bin' that indicates the time bin each 'time' value belongs to
     data['time_bin'] = pd.cut(data['time'], bins=bins, labels=False)
 
+    # TODO: Implement bins = None to use the original time values
+    
     # Group by 'time_bin', 'Brain region', and 'fly' and compute the average and median distance for each group
     avg_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].mean().reset_index()
     avg_distance.columns = ['time_bin', 'Brain region', 'fly', 'avg_distance']
@@ -227,22 +252,7 @@ def preprocess_data(data, bins=10):
 
     return processed_data
 
-def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False, method='custom'):
-    """
-    Compute permutation test on the given data subset using either a custom implementation or SciPy's permutation_test.
-    
-    Args:
-    data (pd.DataFrame): The input data containing 'Brain region', 'time', and the specified metric.
-    metric (str): The name of the column to analyze (e.g., 'distance_ball_0').
-    n_permutations (int): Number of permutations for the test.
-    show_progress (bool): Whether to show a progress bar during permutations.
-    verbose (bool): Whether to print additional information.
-    method (str): 'custom' for the custom implementation or 'scipy' for SciPy's permutation_test.
-    
-    Returns:
-    dict: A dictionary containing the results of the permutation test.
-    """
-    # Split the data by Brain region
+def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False):
     Focal = data[data["Brain region"] != "Control"]
     Control = data[data["Brain region"] == "Control"]
     
@@ -250,53 +260,46 @@ def compute_permutation_test(data, metric, n_permutations=1000, show_progress=Fa
         print(f"Number of Focal data points: {len(Focal)}")
         print(f"Number of Control data points: {len(Control)}")
 
-    # Compute average metric grouped by time
-    Focal_avg = Focal[metric].groupby(Focal["time_bin"]).mean()
-    Ctrl_avg = Control[metric].groupby(Control["time_bin"]).mean()
+    # Group by time_bin and fly
+    Focal_grouped = Focal.groupby(['time_bin', 'fly'])[metric].mean().unstack()
+    Ctrl_grouped = Control.groupby(['time_bin', 'fly'])[metric].mean().unstack()
     
     if verbose:
-        print(f"Number of Focal timepoints: {len(Focal_avg)}")
-        print(f"Number of Control timepoints: {len(Ctrl_avg)}")
-        print(f"{Focal_avg.head()}")
-        print(f"{Ctrl_avg.head()}")
+        print(f"Number of Focal timepoints: {len(Focal_grouped)}")
+        print(f"Number of Control timepoints: {len(Ctrl_grouped)}")
+        print(f"{Focal_grouped.head()}")
+        print(f"{Ctrl_grouped.head()}")
+
+    observed_diffs = Focal_grouped.mean(axis=1) - Ctrl_grouped.mean(axis=1)
     
-    # Ensure both series have the same time index
-    common_index = Focal_avg.index.intersection(Ctrl_avg.index)
-    Focal_avg = Focal_avg.loc[common_index]
-    Ctrl_avg = Ctrl_avg.loc[common_index]
+    p_values = []
+    for time_bin in Focal_grouped.index:
+        focal_bin = Focal_grouped.loc[time_bin]
+        ctrl_bin = Ctrl_grouped.loc[time_bin]
+        
+        observed_diff = focal_bin.mean() - ctrl_bin.mean()
+        combined = np.concatenate([focal_bin, ctrl_bin])
+        n_focal = len(focal_bin)
+        
+        perm_diffs = []
+        for _ in range(n_permutations):
+            perm = np.random.permutation(combined)
+            perm_diff = perm[:n_focal].mean() - perm[n_focal:].mean()
+            perm_diffs.append(perm_diff)
+        
+        p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff))
+        p_values.append(p_value)
 
-    if method == 'custom':
-        # Convert series to DataFrames
-        Focal_df = pd.DataFrame(Focal_avg)
-        Ctrl_df = pd.DataFrame(Ctrl_avg)
-
-        # Perform custom permutation test
-        observed_diff, p_values = Processing.permutation_test(Focal_df, Ctrl_df, n_permutations)
-    elif method == 'scipy':
-        # Define the test statistic function
-        def test_statistic(x, y):
-            return np.mean(x) - np.mean(y)
-
-        # Perform SciPy's permutation test
-        result = stats.permutation_test((Focal_avg, Ctrl_avg), test_statistic, 
-                                        n_resamples=n_permutations, 
-                                        alternative='two-sided')
-        observed_diff = result.statistic
-        p_values = np.full(len(Focal_avg), result.pvalue)
-    else:
-        raise ValueError("Invalid method. Choose 'custom' or 'scipy'.")
-
-    # Analyze results
-    significance_level = 0.05
-    significant_timepoints = np.where(p_values < significance_level)[0]
-
+    p_values = np.array(p_values)
+    
     # Apply multiple testing correction
-    rejected, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
-    significant_timepoints_corrected = np.where(rejected)[0]
+    _, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
+    
+    significant_timepoints = np.where(p_values < 0.05)[0]
+    significant_timepoints_corrected = np.where(p_values_corrected < 0.05)[0]
 
-    # Prepare results
     results = {
-        'observed_diff': observed_diff,
+        'observed_diff': observed_diffs,
         'p_values': p_values,
         'significant_timepoints': significant_timepoints,
         'p_values_corrected': p_values_corrected,
@@ -308,11 +311,14 @@ def compute_permutation_test(data, metric, n_permutations=1000, show_progress=Fa
     }
     
     if verbose:
-        print(f"Observed difference: {observed_diff}")
+        print(f"Observed differences: {observed_diffs}")
+        print(f"P-values: {p_values}")
         print(f"Significant timepoints: {significant_timepoints}")
+        print(f"P-values (corrected): {p_values_corrected}")
         print(f"Significant timepoints (corrected): {significant_timepoints_corrected}")
 
     return results
+
 
 
 
@@ -343,10 +349,10 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries,
         print(f"Processing {nickname} vs {associated_control}")
         
         # Preprocess the data for permutation test
-        preprocessed_data = preprocess_data(subset_data, bins=8)
+        preprocessed_data = preprocess_data(subset_data, bins=data_bins)
         
         if show_signif:
-            permutation = compute_permutation_test(preprocessed_data, 'median_distance', n_permutations=1000, show_progress=show_progress, verbose=False, method='scipy')
+            permutation = compute_permutation_test(preprocessed_data, permutation_metric, n_permutations=n_permutations, show_progress=show_progress, verbose=error_logs)
             
             # Add the 'Significant' column to the preprocessed data
             preprocessed_data['Significant'] = preprocessed_data['time_bin'].isin(permutation['significant_timepoints_corrected'])
@@ -354,18 +360,40 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries,
         # Plot the raw data
         sns.lineplot(data=subset_data, x='time', y='distance_ball_0', hue='Brain region', ax=axes[i], palette=color_dict)
         
-        # Highlight significant timepoints with a red background
+        # Highlight significant timepoints with dotted lines and asterisks
         if show_signif:
             try:
                 significant_bins = preprocessed_data[preprocessed_data['Significant']]['time_bin']
-                for time_bin in significant_bins:
-                    bin_start = subset_data['time'].min() + time_bin * (subset_data['time'].max() - subset_data['time'].min()) / 10
-                    bin_end = bin_start + (subset_data['time'].max() - subset_data['time'].min()) / 10
-                    axes[i].axvspan(bin_start, bin_end, color='red', alpha=0.3)
+                for time_bin in range(data_bins):
+                    bin_start = subset_data['time'].min() + time_bin * (subset_data['time'].max() - subset_data['time'].min()) / data_bins
+                    bin_end = bin_start + (subset_data['time'].max() - subset_data['time'].min()) / data_bins
+                    
+                    # Draw faint dotted lines for the bins
+                    axes[i].axvline(bin_start, color='gray', linestyle='dotted', alpha=0.5)
+                    axes[i].axvline(bin_end, color='gray', linestyle='dotted', alpha=0.5)
+                    
+                    # Annotate significance levels
+                    if time_bin in significant_bins.values:
+                        p_value = permutation['p_values_corrected'][time_bin]
+                        if p_value < 0.001:
+                            significance = '***'
+                        elif p_value < 0.01:
+                            significance = '**'
+                        elif p_value < 0.05:
+                            significance = '*'
+                        else:
+                            significance = ''
+                        
+                        if significance:
+                            # Lower the y position of the stars and increase font size
+                            y_position = subset_data['distance_ball_0'].max() * 0.95
+                            axes[i].annotate(significance, xy=(bin_start + (bin_end - bin_start) / 2, y_position), 
+                                            xycoords='data', ha='center', va='bottom', fontsize=16, color='red')
                 
                 axes[i].set_title(f'{nickname} vs {associated_control}')
                 axes[i].set_xlabel('Time (s)')
-                axes[i].set_ylabel('Distance Ball 0')
+                axes[i].set_ylabel('Ball distance from start (px)')
+                axes[i].legend().remove()  # Remove the legend
             
             except Exception as e:
                 print(f"Error: {e}")
@@ -376,6 +404,31 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries,
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close(fig)  # Close the figure to free up memory
+    
+def create_control_plot(data, control_nicknames, output_path):
+    """
+    Create and save a plot for all control nicknames together.
+    
+    Args:
+    data (pd.DataFrame): The input data containing 'Brain region', 'time', and 'distance_ball_0'.
+    control_nicknames (list): List of control nicknames.
+    output_path (str): Path to save the output plot.
+    """
+    # Subset data for all control nicknames
+    control_data = data[data['Nickname'].isin(control_nicknames)]
+    
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    sns.lineplot(data=control_data, x='time', y='distance_ball_0', hue='Nickname')
+    
+    plt.title('Control Brain Region')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Ball distance from start (px)')
+    
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()  # Close the figure to free up memory
+
     
 # Function to create and save KDE and ECDF plots
 def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, registries):
