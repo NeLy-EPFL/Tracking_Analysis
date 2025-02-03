@@ -25,8 +25,8 @@ import re
 data_path = Utils.get_data_path()
 #experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240120_short_contacts_no_cutoff_no_downsample")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/240120_short_contacts_no_cutoff_no_downsample_Data")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250203_Summary")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250203_Summary")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
@@ -38,12 +38,12 @@ print(f" Folders to analyse : {tnt_folders}")
 
 # Define the list of metrics to generate datasets for
 metrics_list = [#"coordinates", 
-                "contact_data", 
-                #"summary", 
+                #"contact_data", 
+                "summary", 
                 # "F1_coordinates", 
                 # "F1_summary", 
                 # "F1_checkpoints", 
-                "Skeleton_contacts"
+                #"Skeleton_contacts"
                 ]
 
 # Create directories for each metric
@@ -79,7 +79,7 @@ for folder in tnt_folders:
     else:
         print(f"Generating experiment for {folder.name}")
         try:
-            experiment = Ballpushing_utils.Experiment(folder, success_cutoff=False, success_cutoff_method="final_event")
+            experiment = Ballpushing_utils.Experiment(folder, success_cutoff=True, success_cutoff_method="final_event")
             Ballpushing_utils.save_object(experiment, experiment_pkl_path)
         except Exception as e:
             print(f"Could not save experiment {folder.name}")
@@ -110,7 +110,7 @@ for folder in tnt_folders:
 
 # Then, concatenate all the datasets into one big dataset if the pooled dataset doesn't already exist
 for metric in metrics_list:
-    pooled_dataset_path = final_event_cutoff_data_path / metric / f"250106_Pooled_{metric}.feather"
+    pooled_dataset_path = final_event_cutoff_data_path / metric / f"250203_Pooled_{metric}.feather"
     if not pooled_dataset_path.exists():
         try:
             datasets = [pd.read_feather(file) for file in (final_event_cutoff_data_path / metric).iterdir() if file.suffix == ".feather"]
