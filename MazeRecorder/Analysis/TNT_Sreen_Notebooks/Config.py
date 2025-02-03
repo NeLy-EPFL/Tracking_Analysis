@@ -229,93 +229,93 @@ def load_datasets_for_brain_region(brain_region, data_path, registries, downsamp
 
     return combined_data
 
-def preprocess_data(data, bins=10):
-    """
-    Prepare a simplified dataset by splitting the data into n time bins and computing the average and median distance for each bin. It should be done individually for each fly.
+# def preprocess_data(data, bins=10):
+#     """
+#     Prepare a simplified dataset by splitting the data into n time bins and computing the average and median distance for each bin. It should be done individually for each fly.
 
-    Args:
-        data (pd.DataFrame): The input data containing 'time', 'Brain region', 'fly', and 'distance_ball_0'.
-        bins (int, optional): The number of time bins to split the data into. Default is 10.
+#     Args:
+#         data (pd.DataFrame): The input data containing 'time', 'Brain region', 'fly', and 'distance_ball_0'.
+#         bins (int, optional): The number of time bins to split the data into. Default is 10.
 
-    Returns:
-        pd.DataFrame: A DataFrame containing the average and median distance for each time bin, brain region, and fly.
-    """
-    # Create a new column 'time_bin' that indicates the time bin each 'time' value belongs to
-    data['time_bin'] = pd.cut(data['time'], bins=bins, labels=False)
+#     Returns:
+#         pd.DataFrame: A DataFrame containing the average and median distance for each time bin, brain region, and fly.
+#     """
+#     # Create a new column 'time_bin' that indicates the time bin each 'time' value belongs to
+#     data['time_bin'] = pd.cut(data['time'], bins=bins, labels=False)
 
-    # TODO: Implement bins = None to use the original time values
+#     # TODO: Implement bins = None to use the original time values
     
-    # Group by 'time_bin', 'Brain region', and 'fly' and compute the average and median distance for each group
-    avg_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].mean().reset_index()
-    avg_distance.columns = ['time_bin', 'Brain region', 'fly', 'avg_distance']
+#     # Group by 'time_bin', 'Brain region', and 'fly' and compute the average and median distance for each group
+#     avg_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].mean().reset_index()
+#     avg_distance.columns = ['time_bin', 'Brain region', 'fly', 'avg_distance']
 
-    median_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].median().reset_index()
-    median_distance.columns = ['time_bin', 'Brain region', 'fly', 'median_distance']
+#     median_distance = data.groupby(['time_bin', 'Brain region', 'fly'])['distance_ball_0'].median().reset_index()
+#     median_distance.columns = ['time_bin', 'Brain region', 'fly', 'median_distance']
 
-    # Merge the average and median distance dataframes
-    processed_data = avg_distance.merge(median_distance, on=['time_bin', 'Brain region', 'fly'])
+#     # Merge the average and median distance dataframes
+#     processed_data = avg_distance.merge(median_distance, on=['time_bin', 'Brain region', 'fly'])
 
-    return processed_data
+#     return processed_data
 
-def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False):
-    """
-    Improved permutation test using individual datapoints
-    """
-    # Split data without pre-averaging
-    focal_raw = data[data["Brain region"] != "Control"]
-    control_raw = data[data["Brain region"] == "Control"]
+# def compute_permutation_test(data, metric, n_permutations=1000, show_progress=False, verbose=False):
+#     """
+#     Improved permutation test using individual datapoints
+#     """
+#     # Split data without pre-averaging
+#     focal_raw = data[data["Brain region"] != "Control"]
+#     control_raw = data[data["Brain region"] == "Control"]
 
-    # Initialize storage for results
-    p_values = []
-    observed_diffs = []
-    time_bins = sorted(data['time_bin'].unique())
+#     # Initialize storage for results
+#     p_values = []
+#     observed_diffs = []
+#     time_bins = sorted(data['time_bin'].unique())
 
-    for time_bin in time_bins:
-        # Get all individual measurements for this time bin
-        focal = focal_raw[focal_raw['time_bin'] == time_bin][metric].values
-        control = control_raw[control_raw['time_bin'] == time_bin][metric].values
+#     for time_bin in time_bins:
+#         # Get all individual measurements for this time bin
+#         focal = focal_raw[focal_raw['time_bin'] == time_bin][metric].values
+#         control = control_raw[control_raw['time_bin'] == time_bin][metric].values
         
-        # Calculate observed difference
-        obs_diff = np.mean(focal) - np.mean(control)
-        observed_diffs.append(obs_diff)
+#         # Calculate observed difference
+#         obs_diff = np.mean(focal) - np.mean(control)
+#         observed_diffs.append(obs_diff)
         
-        # Handle edge cases
-        if len(focal) == 0 or len(control) == 0:
-            p_values.append(1.0)
-            continue
+#         # Handle edge cases
+#         if len(focal) == 0 or len(control) == 0:
+#             p_values.append(1.0)
+#             continue
 
-        # Combined data pool
-        combined = np.concatenate([focal, control])
-        n_focal = len(focal)
+#         # Combined data pool
+#         combined = np.concatenate([focal, control])
+#         n_focal = len(focal)
         
-        # Permutation test
-        extreme_count = 0
-        for _ in range(n_permutations):
-            np.random.shuffle(combined)
-            perm_diff = np.mean(combined[:n_focal]) - np.mean(combined[n_focal:])
-            if np.abs(perm_diff) >= np.abs(obs_diff):
-                extreme_count += 1
+#         # Permutation test
+#         extreme_count = 0
+#         for _ in range(n_permutations):
+#             np.random.shuffle(combined)
+#             perm_diff = np.mean(combined[:n_focal]) - np.mean(combined[n_focal:])
+#             if np.abs(perm_diff) >= np.abs(obs_diff):
+#                 extreme_count += 1
                 
-        p_values.append(extreme_count / n_permutations)
+#         p_values.append(extreme_count / n_permutations)
 
-    # Multiple testing correction
-    _, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
+#     # Multiple testing correction
+#     _, p_values_corrected, _, _ = multipletests(p_values, method='fdr_bh')
 
-    # Format results
-    results = {
-        'observed_diff': np.array(observed_diffs),
-        'p_values': np.array(p_values),
-        'p_values_corrected': p_values_corrected,
-        'significant_timepoints_corrected': np.where(p_values_corrected < 0.05)[0],
-        'time_bins': time_bins
-    }
+#     # Format results
+#     results = {
+#         'observed_diff': np.array(observed_diffs),
+#         'p_values': np.array(p_values),
+#         'p_values_corrected': p_values_corrected,
+#         'significant_timepoints_corrected': np.where(p_values_corrected < 0.05)[0],
+#         'time_bins': time_bins
+#     }
 
-    if verbose:
-        print("Time Bin | Observed Diff | Raw p-value | Corrected p-value")
-        for i, bin in enumerate(time_bins):
-            print(f"{bin:8} | {observed_diffs[i]:+0.3f} | {p_values[i]:0.4f} | {p_values_corrected[i]:0.4f}")
+#     if verbose:
+#         print("Time Bin | Observed Diff | Raw p-value | Corrected p-value")
+#         for i, bin in enumerate(time_bins):
+#             print(f"{bin:8} | {observed_diffs[i]:+0.3f} | {p_values[i]:0.4f} | {p_values_corrected[i]:0.4f}")
 
-    return results
+#     return results
 
 
 
@@ -347,10 +347,10 @@ def create_and_save_plot(data, nicknames, brain_region, output_path, registries,
         print(f"Processing {nickname} vs {associated_control}")
         
         # Preprocess the data for permutation test
-        preprocessed_data = preprocess_data(subset_data, bins=data_bins)
+        preprocessed_data = Processing.preprocess_data(subset_data, bins=data_bins)
         
         if show_signif:
-            permutation = compute_permutation_test(preprocessed_data, permutation_metric, n_permutations=n_permutations, show_progress=show_progress, verbose=error_logs)
+            permutation = Processing.compute_permutation_test(preprocessed_data, permutation_metric, n_permutations=n_permutations, show_progress=show_progress, verbose=error_logs)
             
             # Add the 'Significant' column to the preprocessed data
             preprocessed_data['Significant'] = preprocessed_data['time_bin'].isin(permutation['significant_timepoints_corrected'])
@@ -498,6 +498,59 @@ def create_and_save_kde_ecdf_plot(data, nicknames, brain_region, output_path, re
     plt.subplots_adjust(hspace=0.4, wspace=0.4)  # Adjust spacing between subplots
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close(fig)  # Close the figure to free up memory
+    
+def create_and_save_hist_kde_rawdisp_plot(data, nicknames, brain_region, output_path, registries, color_dict):
+    # Filter data to include only raw_displacement values above 1
+    data = data[data['raw_displacement'] > 5]
+    
+    if brain_region == "Control":
+        # Special case: Plot all controls together
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Subset data for all control nicknames
+        control_data = data[data['Nickname'].isin(nicknames)]
+        
+        # Histogram and KDE Plot
+        sns.histplot(data=control_data, x='raw_displacement', hue="Nickname", bins=100, kde=True, stat="density", common_norm=False, element="step", ax=ax)
+        ax.set_title('Raw Displacement for All Controls', fontsize=12)
+        ax.set_xlabel('Raw Displacement (px)')
+        ax.set_ylabel('Frequency')
+        ax.set_xlim(0, 50)
+        ax.tick_params(labelsize=10)
+        
+    else:
+        # Default behavior for other brain regions
+        pairs_per_row = 3
+        n_nicknames = len(nicknames)
+        n_rows = math.ceil(n_nicknames / pairs_per_row)
+        
+        subplot_size = (10, 6)  # Adjusted size for each subplot
+        fig_width, fig_height = subplot_size[0] * pairs_per_row, subplot_size[1] * n_rows
+        
+        fig, axes = plt.subplots(n_rows, pairs_per_row, figsize=(fig_width, fig_height), squeeze=False)
+        
+        for i, nickname in enumerate(nicknames):
+            row = i // pairs_per_row
+            col = i % pairs_per_row
+            
+            nickname_data = data[data['Nickname'] == nickname]
+            split_value = nickname_data['Split'].iloc[0]
+            associated_control = registries["control_nicknames_dict"][split_value]
+            control_data = data[data['Nickname'] == associated_control]
+            subset_data = pd.concat([nickname_data, control_data])
+            
+            # Histogram and KDE Plot
+            sns.histplot(data=subset_data, x='raw_displacement', hue='Brain region', palette=color_dict, bins=100, kde=True, stat="density", common_norm=False, element="step", ax=axes[row, col])
+            axes[row, col].set_title(f'Raw Displacement: {nickname}\nvs {associated_control}', fontsize=10)
+            axes[row, col].set_xlabel('Raw Displacement (px)')
+            axes[row, col].set_ylabel('Frequency')
+            axes[row, col].set_xlim(0, 50)
+            axes[row, col].tick_params(labelsize=8)
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)  # Close the figure to free up memory
+
     
 def create_and_save_contact_rate_plot(data, nicknames, brain_region, output_path, registries, color_dict):
     # Define the time window (e.g., 100 seconds)
