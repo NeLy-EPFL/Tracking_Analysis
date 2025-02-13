@@ -25,8 +25,8 @@ import re
 data_path = Utils.get_data_path()
 #experiment_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/Skeleton_TNT/241209_Exps")
 
-final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250203_Summary")
-final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250203_Summary")
+final_event_cutoff_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250204_Summary_2")
+final_event_cutoff_data_path = Path("/mnt/upramdya_data/MD/MultiMazeRecorder/Datasets/250204_Summary_2_Data")
 
 # Check if these folders exist and if not, create them
 final_event_cutoff_path.mkdir(parents=True, exist_ok=True)
