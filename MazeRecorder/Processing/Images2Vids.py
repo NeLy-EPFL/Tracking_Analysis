@@ -5,10 +5,10 @@ import os
 import sys
 import numpy as np
 from datetime import datetime
-import utils_behavior
+from utils_behavior import Utils
 
 data_folder = Path("/home/matthias/Videos/")
-output_path = utils_behavior.Utils.get_data_path()
+output_path = Utils.get_data_path()
 
 # fps = "29"
 

@@ -34,8 +34,8 @@ CONTOUR_PARAMS = {
     'padding': 10
 }
 
-def process_image(image_path, output_base, rotation=None):
-    """Process individual image with rotation handling"""
+def process_first_frame(image_path, rotation=None):
+    """Process the first frame to find rectangles"""
     img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
     
     if rotation:
@@ -46,7 +46,7 @@ def process_image(image_path, output_base, rotation=None):
         elif rotation == 'rotater':
             img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
 
-    subcrops = []
+    rectangles_per_region = []
     for region_idx, region in enumerate(REGION_COORDINATES):
         x1, y1, x2, y2 = region
         region_img = img[y1:y2, x1:x2]
@@ -63,18 +63,41 @@ def process_image(image_path, output_base, rotation=None):
         # Contour detection
         contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         rectangles = [
-            c for c in contours
+            cv2.boundingRect(c) for c in contours
             if CONTOUR_PARAMS['min_area'] < cv2.contourArea(c) < CONTOUR_PARAMS['max_area']
         ]
         
         # Validate we found exactly 6 corridors per region
         if len(rectangles) != 6:
             print(f"Warning: Found {len(rectangles)} contours in region {region_idx+1}")
+            rectangles_per_region.append([])
+        else:
+            rectangles_per_region.append(rectangles)
+    
+    return rectangles_per_region
+
+def process_image(image_path, output_base, rectangles_per_region, rotation=None):
+    """Process individual image using precomputed rectangles"""
+    img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    
+    if rotation:
+        if rotation == 'flip':
+            img = cv2.rotate(img, cv2.ROTATE_180)
+        elif rotation == 'rotatel':
+            img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        elif rotation == 'rotater':
+            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+
+    for region_idx, region in enumerate(REGION_COORDINATES):
+        x1, y1, x2, y2 = region
+        region_img = img[y1:y2, x1:x2]
+        
+        rectangles = rectangles_per_region[region_idx]
+        if not rectangles:
             continue
 
         # Process and save subcrops
-        for corridor_idx, rect in enumerate(rectangles):
-            x, y, w, h = cv2.boundingRect(rect)
+        for corridor_idx, (x, y, w, h) in enumerate(rectangles):
             pad = CONTOUR_PARAMS['padding']
             subcrop = region_img[
                 max(0, y-pad):min(region_img.shape[0], y+h+pad),
@@ -87,7 +110,9 @@ def process_image(image_path, output_base, rotation=None):
             output_dir = output_base / f"arena{region_idx+1}" / f"corridor{corridor_idx+1}"
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            cv2.imwrite(str(output_dir / image_path.name), subcrop)
+            # Save the image with "_cropped" suffix
+            output_filename = image_path.stem + "_cropped.jpg"
+            cv2.imwrite(str(output_dir / output_filename), subcrop)
 
 def process_folder(input_folder, output_folder):
     """Process all images in a folder"""
@@ -106,9 +131,12 @@ def process_folder(input_folder, output_folder):
     elif 'rotater' in folder_name:
         rotation = 'rotater'
 
+    # Process the first frame to find rectangles
+    rectangles_per_region = process_first_frame(images[0], rotation)
+
     # Parallel processing with progress bar
     Parallel(n_jobs=-1)(
-        delayed(process_image)(img, output_folder, rotation)
+        delayed(process_image)(img, output_folder, rectangles_per_region, rotation)
         for img in tqdm(images, desc=f"Processing {input_folder.name}")
     )
 
