@@ -27,7 +27,9 @@ def check_video_integrity(video_path):
         return False
 
 
-def create_video_from_images(images_folder, output_folder, video_name, fps):
+def create_video_from_images(
+    images_folder, output_folder, video_name, fps, rotation="rotater"
+):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
         # Get the current date and time
@@ -36,7 +38,7 @@ def create_video_from_images(images_folder, output_folder, video_name, fps):
         now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
         # Use the date and time to create a unique log file name
         log_file_name = f"ffmpeg_log_{now_str}.txt"
-        # 
+        #
         terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
         try:
             with open(log_file_name, "w") as f:
@@ -45,6 +47,21 @@ def create_video_from_images(images_folder, output_folder, video_name, fps):
                 )
             # If the script completes without errors, remove the log file
             os.remove(log_file_name)
+
+            # Apply rotation if specified
+            if rotation:
+                rotated_video_path = output_folder / f"{video_name}_rotated.mp4"
+                if rotation == "rotater":
+                    print("Rotating video 90 degrees clockwise")
+                    ffmpeg_command = (
+                        f"ffmpeg -i {video_path} -vf 'transpose=1' {rotated_video_path}"
+                    )
+                subprocess.run(ffmpeg_command, shell=True)
+                video_path.unlink()  # Remove the original video file
+                rotated_video_path.rename(
+                    video_path
+                )  # Rename the rotated video file to the original name
+
             return True
         except Exception as e:
             print(f"An error occurred: {e}")
