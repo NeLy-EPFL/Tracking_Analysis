@@ -23,7 +23,7 @@ REGION_COORDINATES = [
 ]
 
 ADAPTIVE_THRESH_PARAMS = {
-    "block_size": 51,
+    "block_size": 61,
     "c": 2,
     "method": cv2.ADAPTIVE_THRESH_MEAN_C,
 }
@@ -91,7 +91,7 @@ def process_last_frame(image_path, rotation="rotater"):
     return rectangles_per_region
 
 
-def process_image(image_path, output_base, rectangles_per_region, rotation="rotater"):
+def process_image(image_path, output_base, rectangles_per_region, rotation=None):
     """Process individual image using precomputed rectangles"""
     img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
 

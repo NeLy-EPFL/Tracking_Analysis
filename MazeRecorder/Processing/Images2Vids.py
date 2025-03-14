@@ -8,7 +8,7 @@ from datetime import datetime
 from utils_behavior import Utils
 
 data_folder = Path("/home/matthias/Videos/")
-output_path = Utils.get_data_path()
+output_path =  Path("/mnt/upramdya_data/MD/Infection_Exps/InfectionCorridors/Experiments") #Utils.get_data_path()
 
 # fps = "29"
 
@@ -28,7 +28,7 @@ def check_video_integrity(video_path):
 
 
 def create_video_from_images(
-    images_folder, output_folder, video_name, fps, rotation="rotater"
+    images_folder, output_folder, video_name, fps, rotation=None
 ):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
