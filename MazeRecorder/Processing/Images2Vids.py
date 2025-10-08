@@ -3,12 +3,24 @@ from tqdm import tqdm
 import subprocess
 import os
 import sys
+import argparse
 import numpy as np
 from datetime import datetime
 from utils_behavior import Utils
 
 data_folder = Path("/home/matthias/Videos/")
-output_path =  Path("/mnt/upramdya_data/MD/Infection_Exps/InfectionCorridors/Experiments") #Utils.get_data_path()
+# Known output roots to search for the experiment folder. Edit this list to include all
+# locations where experiment folders may already be created. The script will pick the
+# first path that contains a folder with the same name and a metadata.json file.
+OUTPUT_PATHS = [
+    Path("/mnt/upramdya_data/MD/Infection_Exps/InfectionCorridors/Experiments"),
+    Path("/mnt/upramdya_data/MD/F1_Tracks/Videos"),
+    Path("/home/matthias/Videos_output"),
+]
+
+# Backwards-compatible single-variable for scripts that reference `output_path`.
+# It will be set per-experiment below when a matching folder is found.
+output_path = None
 
 # fps = "29"
 
@@ -28,7 +40,7 @@ def check_video_integrity(video_path):
 
 
 def create_video_from_images(
-    images_folder, output_folder, video_name, fps, rotation=None
+    images_folder, output_folder, video_name, fps, rotation=None, dry_run=False
 ):
     video_path = output_folder / f"{video_name}.mp4"
     if not video_path.exists():
@@ -40,6 +52,11 @@ def create_video_from_images(
         log_file_name = f"ffmpeg_log_{now_str}.txt"
         #
         terminal_call = f"/usr/bin/ffmpeg -loglevel panic -nostats -hwaccel cuda -r {fps} -i {images_folder.as_posix()}/image%d_cropped.jpg -pix_fmt yuv420p -c:v libx265 -crf 15 {video_path.as_posix()}"
+        if dry_run:
+            print(f"DRY RUN: would run ffmpeg to create {video_path}")
+            if rotation:
+                print(f"DRY RUN: would apply rotation {rotation} to {video_path}")
+            return True
         try:
             with open(log_file_name, "w") as f:
                 subprocess.run(
@@ -74,7 +91,7 @@ def create_video_from_images(
 # -loglevel panic -nostats >  This is to remove the output of the ffmpeg command from the terminal, to add right after the ffmpeg command
 
 
-def search_folder_for_images(folder_path, output_folder, fps):
+def search_folder_for_images(folder_path, output_folder, fps, dry_run=False):
     subdirs = []
     for subdir in folder_path.glob("**/*"):
         if subdir.is_dir() and any(
@@ -85,9 +102,18 @@ def search_folder_for_images(folder_path, output_folder, fps):
         for subdir in subdirs:
             relative_subdir = subdir.relative_to(folder_path)
             video_output_folder = output_folder / relative_subdir
-            video_output_folder.mkdir(parents=True, exist_ok=True)
             video_name = relative_subdir.name
             video_path = video_output_folder / f"{video_name}.mp4"
+
+            # In dry run, just report what would be done
+            if dry_run:
+                print(f"DRY RUN: found images in {subdir}")
+                print(f"DRY RUN: would ensure output folder {video_output_folder} exists")
+                print(f"DRY RUN: would create video named {video_path} with fps={fps}")
+                pbar.update(1)
+                continue
+
+            video_output_folder.mkdir(parents=True, exist_ok=True)
             if not video_path.exists() or not check_video_integrity(
                 video_path.as_posix()
             ):
@@ -103,17 +129,93 @@ def search_folder_for_images(folder_path, output_folder, fps):
             pbar.update(1)
 
 
-for folder in data_folder.iterdir():
-    if folder.is_dir() and folder.name.endswith("_Checked"):
+def process_all(dry_run=False):
+    # Gather experiments and matches first when in dry run to provide a clean summary
+    recorded_folders = [f for f in data_folder.iterdir() if f.is_dir() and f.name.endswith("_Checked")]
+
+    if dry_run:
+        experiments = []
+        matched_map = {}
+        missing = []
+        for folder in recorded_folders:
+            output_folder_name = folder.name.replace("_Cropped_Checked", "")
+            experiments.append(output_folder_name)
+            matched_output_folder = None
+            matched_output_root = None
+            for root in OUTPUT_PATHS:
+                candidate = root / output_folder_name
+                if candidate.exists() and (candidate / 'metadata.json').exists():
+                    matched_output_root = root
+                    matched_output_folder = candidate
+                    break
+            if matched_output_folder:
+                matched_map[output_folder_name] = str(matched_output_folder)
+            else:
+                missing.append(output_folder_name)
+
+        # Print summary
+        print("DRY RUN SUMMARY")
+        print("--------------")
+        if experiments:
+            print("Found experiments to process:")
+            for e in experiments:
+                print(f" - {e}")
+        else:
+            print("No experiments found to process in data folder.")
+
+        print("")
+        if matched_map:
+            print("Found pre-made output folders (will use these):")
+            for exp, path in matched_map.items():
+                print(f" - {exp} -> {path}")
+        else:
+            print("No matching pre-made output folders found in OUTPUT_PATHS.")
+
+        print("")
+        if missing:
+            print("Experiments missing prefilled output directories (no metadata.json found):")
+            for e in missing:
+                print(f" - {e}")
+            print("")
+            print(f"Searched output roots: {[str(p) for p in OUTPUT_PATHS]}")
+
+        # End dry run without performing any actions
+        return
+
+    # Non-dry run processing
+    for folder in recorded_folders:
         print(f"Processing folder: {folder.name}")
         output_folder_name = folder.name.replace("_Cropped_Checked", "")
-        output_folder = output_path / f"{output_folder_name}"
-        if not output_folder.exists():
-            print(f"Error: Folder not found: {output_folder.name}")
+
+        # Search known output roots for an existing experiment folder with metadata.json
+        matched_output_root = None
+        matched_output_folder = None
+        for root in OUTPUT_PATHS:
+            candidate = root / output_folder_name
+            if candidate.exists() and (candidate / 'metadata.json').exists():
+                matched_output_root = root
+                matched_output_folder = candidate
+                break
+
+        if matched_output_folder is None:
+            print(
+                "Warning: this experiment found in the data folder doesn't have a prefilled output directory in any of the output paths known.\n"
+                f"Searched paths: {[str(p) for p in OUTPUT_PATHS]}\n"
+                f"Experiment folder name: {output_folder_name}\n"
+                "Expected a folder with a metadata.json inside one of the output roots."
+            )
+            # Skip this experiment; user can create the experiment folder in one of the OUTPUT_PATHS
             continue
-        processing_output_folder = output_path / f"{output_folder_name}_Processing"
+
+        # Use the matched output folder for further processing
+        output_path_local = matched_output_root
+        output_folder = matched_output_folder
+        processing_output_folder = output_path_local / f"{output_folder_name}_Processing"
         if not processing_output_folder.exists():
-            output_folder.rename(processing_output_folder)
+            if dry_run:
+                print(f"DRY RUN: would rename {output_folder} -> {processing_output_folder}")
+            else:
+                output_folder.rename(processing_output_folder)
 
         # Load the fps value from the fps.npy file in the experiment directory
         fps_file = processing_output_folder / "fps.npy"
@@ -124,19 +226,36 @@ for folder in data_folder.iterdir():
             print(f"Error: fps.npy file not found in {folder}")
             continue
 
-        search_folder_for_images(folder, processing_output_folder, fps)
+        search_folder_for_images(folder, processing_output_folder, fps, dry_run=dry_run)
         # Rename the output folder after all videos have been created
         print(f"Processing of {folder.name} complete.")
         new_output_folder_name = f"{output_folder_name}_Videos"
-        new_output_folder = output_path / new_output_folder_name
-        processing_output_folder.rename(new_output_folder)
+        new_output_folder = output_path_local / new_output_folder_name
+        if dry_run:
+            print(f"DRY RUN: would rename {processing_output_folder} -> {new_output_folder}")
+        else:
+            processing_output_folder.rename(new_output_folder)
 
-script_dir = Path(__file__).resolve().parent
+def main():
+    parser = argparse.ArgumentParser(description="Create videos from cropped images")
+    parser.add_argument("--dry-run", action="store_true", help="Do a dry run and show planned actions without making changes")
+    args = parser.parse_args()
 
-conda_path = "/home/matthias/miniconda3/bin/activate"
-CheckVideos_path = script_dir / "CheckVideos.py"
-command = f". {conda_path} processing && python {CheckVideos_path}"
-subprocess.run(command, shell=True, executable="/bin/bash")
+    process_all(dry_run=args.dry_run)
+
+    script_dir = Path(__file__).resolve().parent
+
+    conda_path = "/home/matthias/miniconda3/bin/activate"
+    CheckVideos_path = script_dir / "CheckVideos.py"
+    command = f". {conda_path} processing && python {CheckVideos_path}"
+    if args.dry_run:
+        print(f"DRY RUN: would run post-processing command: {command}")
+    else:
+        subprocess.run(command, shell=True, executable="/bin/bash")
+
+
+if __name__ == '__main__':
+    main()
 
 # TODO: Add a way to resume an aborted processing in a given folder, by checking already existing videos integrity, skipping them and processing folder not yet done.
 
