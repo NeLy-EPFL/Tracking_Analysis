@@ -3,12 +3,8 @@ from pathlib import Path
 import cv2
 import re
 from tqdm import tqdm
-import cv2
 import numpy as np
-from pathlib import Path
 from scipy import signal
-import re
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import shutil
 from itertools import repeat
@@ -16,6 +12,8 @@ import subprocess
 import sys
 import os
 from joblib import Parallel, delayed
+import gc
+import multiprocessing as mp
 
 # from multiprocessing import Pool
 # from multiprocessing import set_start_method
@@ -33,7 +31,12 @@ datafolder = Path("/home/matthias/Videos/")
 #         return process_image(*args)
 
 def check_process(data_folder):
+    """Check which folders need processing and process them."""
     data_folder = Path(data_folder)
+    if not data_folder.exists():
+        print(f"Error: Data folder {data_folder} does not exist.")
+        return
+        
     for folder in data_folder.iterdir():
         if (
             folder.is_dir()
@@ -61,7 +64,17 @@ def check_process(data_folder):
                 )
             else:
                 print(f"{folder.name} is not processed. Processing...")
-                process_folder(folder)
+                try:
+                    process_folder(folder)
+                except Exception as e:
+                    print(f"Error processing {folder.name}: {e}")
+                    print("Cleaning up incomplete processing folder...")
+                    # Clean up any incomplete processing folder
+                    if pending_folder.exists():
+                        import shutil
+                        shutil.rmtree(pending_folder)
+                        print(f"Removed incomplete processing folder: {pending_folder}")
+                    raise  # Re-raise the exception to stop execution
 
 
 def modify_corridors(Corridors):
@@ -79,33 +92,52 @@ def modify_corridors(Corridors):
 
 
 def process_image(image, Corridors, folder, processedfolder):
-    # Read and process the image
-    frame = cv2.imread(str(folder / image))
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    """Process a single image: crop according to corridors and save."""
+    try:
+        # Read and process the image
+        frame = cv2.imread(str(folder / image))
+        if frame is None:
+            print(f"Warning: Could not load image {image}")
+            return
+            
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Convert the folder name to lowercase
-    folder_name = str(folder).lower()
+        # Convert the folder name to lowercase
+        folder_name = str(folder).lower()
 
-    # Check if the folder name contains '_flip', 'rotatel' or 'rotater' and rotate the image accordingly
-    if '_flip' in folder_name:
-        frame = cv2.rotate(frame, cv2.ROTATE_180)
-    elif 'rotatel' in folder_name:
-        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    elif 'rotater' in folder_name:
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        # Check if the folder name contains '_flip', 'rotatel' or 'rotater' and rotate the image accordingly
+        if '_flip' in folder_name:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
+        elif 'rotatel' in folder_name:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        elif 'rotater' in folder_name:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
-    for j, subset in enumerate(Corridors):
-        for k, corridor in enumerate(subset):
-            # Get the subfolder for this arena and corridor
-            subfolder = processedfolder / f"arena{j+1}" / f"corridor{k+1}"
+        for j, subset in enumerate(Corridors):
+            for k, corridor in enumerate(subset):
+                # Get the subfolder for this arena and corridor
+                subfolder = processedfolder / f"arena{j+1}" / f"corridor{k+1}"
 
-            # Crop the image
-            x1, y1, x2, y2 = corridor
-            cropped_image = frame[y1:y2, x1:x2]
+                # Crop the image
+                x1, y1, x2, y2 = corridor
+                cropped_image = frame[y1:y2, x1:x2]
 
-            # Save the cropped image
-            cropped_image_file = f"{Path(image).stem}_cropped.jpg"
-            cv2.imwrite(str(subfolder / cropped_image_file), cropped_image)
+                # Save the cropped image
+                cropped_image_file = f"{Path(image).stem}_cropped.jpg"
+                cv2.imwrite(str(subfolder / cropped_image_file), cropped_image)
+    
+    except Exception as e:
+        print(f"Error processing {image}: {e}")
+    finally:
+        # Explicitly clean up large variables
+        if 'frame' in locals():
+            del frame
+
+
+def process_image_batch(image_batch, Corridors, folder, processedfolder):
+    """Process a batch of images to reduce overhead."""
+    for image in image_batch:
+        process_image(image, Corridors, folder, processedfolder)
 
 
 def process_folder(in_folder):
@@ -133,6 +165,9 @@ def process_folder(in_folder):
 
     # Load the last frame
     frame = cv2.imread(str(image_files[-1]))
+    if frame is None:
+        print(f"Error: Could not load image {image_files[-1]}")
+        return
 
     # If it's not already, make it grayscale
     if len(frame.shape) > 2:
@@ -232,7 +267,17 @@ def process_folder(in_folder):
         # Before creating subcors, check if Colpos and Rowpos have the expected number of elements
         expected_num_peaks = 12  # Adjust based on your expectations
         if len(Colpos) < expected_num_peaks or len(Rowpos) < 2:
-            print(f"Warning: Found {len(Colpos)} column peaks and {len(Rowpos)} row peaks, expected at least {expected_num_peaks} column peaks and 2 row peaks. Skipping this subset.")
+            error_msg = f"ERROR: Peak detection failed for region {i+1}. Found {len(Colpos)} column peaks and {len(Rowpos)} row peaks, but expected at least {expected_num_peaks} column peaks and 2 row peaks."
+            print(error_msg)
+            print(f"Cannot proceed with processing {in_folder.name} - all regions must have valid peak detection.")
+            
+            # Clean up the processing folder if it was created
+            if processedfolder.exists():
+                import shutil
+                shutil.rmtree(processedfolder)
+                print(f"Cleaned up incomplete processing folder: {processedfolder}")
+            
+            raise RuntimeError(error_msg)
 
         subcors = [
             (
@@ -279,6 +324,37 @@ def process_folder(in_folder):
 
     Corridors = modify_corridors(Corridors)
 
+    # Verify all corridors were successfully detected
+    if len(Corridors) != len(regions_of_interest):
+        error_msg = f"ERROR: Expected {len(regions_of_interest)} corridor sets, but only got {len(Corridors)}. Peak detection failed."
+        print(error_msg)
+        
+        # Clean up the processing folder
+        if processedfolder.exists():
+            import shutil
+            shutil.rmtree(processedfolder)
+            print(f"Cleaned up incomplete processing folder: {processedfolder}")
+        
+        raise RuntimeError(error_msg)
+
+    # Verify each corridor set has the expected number of corridors
+    expected_corridors_per_set = 6
+    for i, corridor_set in enumerate(Corridors):
+        if len(corridor_set) != expected_corridors_per_set:
+            error_msg = f"ERROR: Arena {i+1} has {len(corridor_set)} corridors, expected {expected_corridors_per_set}."
+            print(error_msg)
+            
+            # Clean up the processing folder
+            if processedfolder.exists():
+                import shutil
+                shutil.rmtree(processedfolder)
+                print(f"Cleaned up incomplete processing folder: {processedfolder}")
+            
+            raise RuntimeError(error_msg)
+
+    print(f"SUCCESS: All {len(Corridors)} regions detected with {expected_corridors_per_set} corridors each.")
+
+    # Create visualization of all detected corridors
     fig, axs = plt.subplots(9, 6, figsize=(20, 20))
     for i in range(9):
         for j in range(6):
@@ -301,12 +377,13 @@ def process_folder(in_folder):
     plt.savefig(
         str(processedfolder.joinpath("crop_check.png")), dpi=300, bbox_inches="tight"
     )
+    plt.close()  # Close the figure to free memory
 
     # Get a list of all image files in the input folder
     images = [f.name for f in folder.glob("*.[jJ][pP][gG]") if f.is_file()]
 
-    # Sort the list of images by their number
-    images.sort(key=lambda f: int(re.sub("\D", "", f)))
+    # Sort the list of images by their number (fix the regex syntax)
+    images.sort(key=lambda f: int(re.sub(r"\D", "", f)))
 
     # Create the subfolders for each arena and corridor
     for j, subset in enumerate(Corridors):
@@ -317,42 +394,28 @@ def process_folder(in_folder):
     # Check if standard input is connected to a terminal
     is_tty = os.isatty(sys.stdin.fileno())
 
-    # Process the images in parallel using a process pool
-    # with ProcessPoolExecutor(max_workers=3) as executor:
-    #     results = list(
-    #         tqdm(
-    #             executor.map(
-    #                 process_image,
-    #                 images,
-    #                 repeat(Corridors),
-    #                 repeat(folder),
-    #                 repeat(processedfolder),
-    #             ),
-    #             total=len(images),
-    #             disable=not is_tty,  # Disable the progress bar if not running in a terminal
-    #         )
-    #     )
+    print(f"Processing {len(images)} images...")
+
+    # Process images in batches to reduce memory usage and overhead
+    batch_size = max(1, len(images) // (mp.cpu_count() * 4))  # Adaptive batch size
+    image_batches = [images[i:i + batch_size] for i in range(0, len(images), batch_size)]
     
-    # Implement the same process as above using joblib
-    # Prepare the arguments for the process_image function
-    args = [(image, Corridors, folder, processedfolder) for image in images]
+    # Prepare the arguments for the process_image_batch function
+    args = [(batch, Corridors, folder, processedfolder) for batch in image_batches]
 
-    # Use joblib to run the process_image function in parallel
-    results = Parallel(n_jobs=-1)(delayed(process_image)(*arg) for arg in tqdm(args))
-    # implementation with multiprocessing.Pool    
-
-    # Prepare the arguments for the process_image function
-    # args = [(image, Corridors, folder, processedfolder) for image in images]
-
-    # # Create a multiprocessing Pool
-    # with Pool() as p:
-    #     results = list(tqdm(p.imap(process_image_wrapper, args), total=len(images), disable=not is_tty))
-
-    # Process the images sequentially. Use the code below to test the process without multiprocessing
-    # results = []
-    # for image in tqdm(images, total=len(images), disable=not is_tty):
-    #     result = process_image(image, Corridors, folder, processedfolder)
-    #     results.append(result)
+    # Use threading backend for better resource management
+    try:
+        with Parallel(n_jobs=-1, backend='threading', batch_size=1) as parallel:
+            results = parallel(delayed(process_image_batch)(*arg) for arg in tqdm(args, disable=not is_tty))
+    except Exception as e:
+        print(f"Error during parallel processing: {e}")
+        print("Falling back to sequential processing...")
+        # Fallback to sequential processing
+        for batch in tqdm(image_batches, disable=not is_tty):
+            process_image_batch(batch, Corridors, folder, processedfolder)
+    
+    # Force garbage collection to clean up any remaining resources
+    gc.collect()
             
     # rename the processed folder from _processing to _Cropped
     croppedfolder = processedfolder.with_name(processedfolder.stem.replace("_Processing", "_Cropped"))
@@ -363,14 +426,32 @@ def process_folder(in_folder):
 check_process(datafolder)
 
 
-if os.isatty(sys.stdin.fileno()):
-    run_checkcrops = input(
-        "Launch verification of processed folders integrity? (y/n): "
-    )
-    if run_checkcrops.lower() == "y":
-        # Get the directory of the current script
-        script_dir = Path(__file__).resolve().parent
-        # Construct the path to CheckCrops.sh
-        checkcrops_path = script_dir / "CheckCrops.sh"
-        # Run the script
-        subprocess.run([str(checkcrops_path)])
+# Main execution
+if __name__ == "__main__":
+    # Set multiprocessing start method to avoid resource tracker issues
+    try:
+        mp.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass  # Start method already set
+
+    try:
+        check_process(datafolder)
+
+        if os.isatty(sys.stdin.fileno()):
+            run_checkcrops = input(
+                "Launch verification of processed folders integrity? (y/n): "
+            )
+            if run_checkcrops.lower() == "y":
+                # Get the directory of the current script
+                script_dir = Path(__file__).resolve().parent
+                # Construct the path to CheckCrops.sh
+                checkcrops_path = script_dir / "CheckCrops.sh"
+                # Run the script
+                if checkcrops_path.exists():
+                    subprocess.run([str(checkcrops_path)])
+                else:
+                    print(f"CheckCrops.sh not found at {checkcrops_path}")
+    
+    finally:
+        # Final cleanup
+        gc.collect()
