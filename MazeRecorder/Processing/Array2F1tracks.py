@@ -113,17 +113,13 @@ def test_process_folder(folder_path, num_images=5):
         print(f"Arena {i+1} orientation: {orientation}")
 
     # Create visualization of detected arenas with split preview
-    fig, axs = plt.subplots(3, 9, figsize=(30, 10))  # 3 rows, 9 columns (arena + left + right for each)
+    # 3 rows x 6 columns to match 3x3 physical layout (each arena gets 2 columns: Left, Right)
+    fig, axs = plt.subplots(3, 6, figsize=(30, 15))
     
     for i in range(9):
-        # Show original arena
-        arena_crop = frame[
-            regions_of_interest[i][1] : regions_of_interest[i][3],
-            regions_of_interest[i][0] : regions_of_interest[i][2],
-        ]
-        axs[0, i].imshow(arena_crop, cmap="gray", vmin=0, vmax=255)
-        axs[0, i].set_title(f"Arena {i+1} ({orientations[i]})")
-        axs[0, i].axis("off")
+        # Calculate position in 3x3 grid
+        row = i // 3  # 0, 1, 2
+        col_offset = (i % 3) * 2  # 0, 2, 4 (each arena uses 2 columns)
         
         # Process the arena to show left and right splits
         x1, y1, x2, y2 = regions_of_interest[i]
@@ -157,14 +153,14 @@ def test_process_folder(folder_path, num_images=5):
         right_half_rotated = cv2.rotate(right_half, cv2.ROTATE_180)
         
         # Show left half
-        axs[1, i].imshow(left_half, cmap="gray", vmin=0, vmax=255)
-        axs[1, i].set_title(f"Left {i+1}")
-        axs[1, i].axis("off")
+        axs[row, col_offset].imshow(left_half, cmap="gray", vmin=0, vmax=255)
+        axs[row, col_offset].set_title(f"Arena {i+1} Left ({orientations[i]})")
+        axs[row, col_offset].axis("off")
         
         # Show right half (rotated)
-        axs[2, i].imshow(right_half_rotated, cmap="gray", vmin=0, vmax=255)
-        axs[2, i].set_title(f"Right {i+1}")
-        axs[2, i].axis("off")
+        axs[row, col_offset + 1].imshow(right_half_rotated, cmap="gray", vmin=0, vmax=255)
+        axs[row, col_offset + 1].set_title(f"Arena {i+1} Right")
+        axs[row, col_offset + 1].axis("off")
 
     plt.tight_layout()
     plt.savefig(
@@ -415,18 +411,14 @@ def process_folder(in_folder):
         orientations.append(orientation)
         print(f"Arena {i+1} orientation: {orientation}")
 
-    # Create visualization of detected arenas with split preview (3 rows x 9 columns)
-    fig, axs = plt.subplots(3, 9, figsize=(30, 10))  # 3 rows, 9 columns (arena + left + right for each)
+    # Create visualization of detected arenas with split preview
+    # 3 rows x 6 columns to match 3x3 physical layout (each arena gets 2 columns: Left, Right)
+    fig, axs = plt.subplots(3, 6, figsize=(30, 15))
     
     for i in range(9):
-        # Show original arena
-        arena_crop = frame[
-            regions_of_interest[i][1] : regions_of_interest[i][3],
-            regions_of_interest[i][0] : regions_of_interest[i][2],
-        ]
-        axs[0, i].imshow(arena_crop, cmap="gray", vmin=0, vmax=255)
-        axs[0, i].set_title(f"Arena {i+1} ({orientations[i]})")
-        axs[0, i].axis("off")
+        # Calculate position in 3x3 grid
+        row = i // 3  # 0, 1, 2
+        col_offset = (i % 3) * 2  # 0, 2, 4 (each arena uses 2 columns)
         
         # Process the arena to show left and right splits
         x1, y1, x2, y2 = regions_of_interest[i]
@@ -460,14 +452,14 @@ def process_folder(in_folder):
         right_half_rotated = cv2.rotate(right_half, cv2.ROTATE_180)
         
         # Show left half
-        axs[1, i].imshow(left_half, cmap="gray", vmin=0, vmax=255)
-        axs[1, i].set_title(f"Left {i+1}")
-        axs[1, i].axis("off")
+        axs[row, col_offset].imshow(left_half, cmap="gray", vmin=0, vmax=255)
+        axs[row, col_offset].set_title(f"Arena {i+1} Left ({orientations[i]})")
+        axs[row, col_offset].axis("off")
         
         # Show right half (rotated)
-        axs[2, i].imshow(right_half_rotated, cmap="gray", vmin=0, vmax=255)
-        axs[2, i].set_title(f"Right {i+1}")
-        axs[2, i].axis("off")
+        axs[row, col_offset + 1].imshow(right_half_rotated, cmap="gray", vmin=0, vmax=255)
+        axs[row, col_offset + 1].set_title(f"Arena {i+1} Right")
+        axs[row, col_offset + 1].axis("off")
 
     plt.tight_layout()
     plt.savefig(

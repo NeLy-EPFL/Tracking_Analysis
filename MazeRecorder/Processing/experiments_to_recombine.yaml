@@ -1,0 +1,13 @@
+# Experiments that need recombining (identified by to_recombine.txt tag)
+# Generated on 2026-01-14
+
+directories:
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/251219_F1_TNT_EmptySplit_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/251230_TNT_F1_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/251125_F1_TNT_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/251230_TNT_F1_2_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/260108_TNT_F1_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/260113_TNT_F1_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/251126_TNT_F1_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/260112_TNT_F1_Videos_Checked
+  - /mnt/upramdya_data/MD/F1_Tracks/Videos/260107_F1_TNT_Videos_Checked

@@ -348,6 +348,15 @@ def process_arena(arena_num, experiment_folder, output_folder, pixels_to_move, d
     print(f"  Output Left:  {output_left.relative_to(output_folder)}")
     print(f"  Output Right: {output_right.relative_to(output_folder)}")
     
+    # Check if output videos already exist
+    if output_left.exists() and output_right.exists():
+        print(f"  ⏭️  Both output videos already exist, skipping arena {arena_num}")
+        return arena_num, True, "Already processed (skipped)"
+    
+    # Create output directories
+    output_left.parent.mkdir(parents=True, exist_ok=True)
+    output_right.parent.mkdir(parents=True, exist_ok=True)
+    
     # If using temp storage, copy videos locally first
     temp_dir = None
     original_left = left_video
@@ -400,7 +409,7 @@ def process_arena(arena_num, experiment_folder, output_folder, pixels_to_move, d
 
 
 
-def recombine_experiment(experiment_folder, pixels_to_move=15, output_folder=None, num_workers=None, test_mode=False, test_arena=1, test_duration=10, use_temp=False, use_cuda=True, show_progress=True):
+def recombine_experiment(experiment_folder, pixels_to_move=15, output_folder=None, num_workers=None, test_mode=False, test_arena=1, test_duration=10, use_temp=False, use_cuda=True, show_progress=True, overwrite=False):
     """
     Recombine all arena pairs in an experiment folder.
     
@@ -413,6 +422,9 @@ def recombine_experiment(experiment_folder, pixels_to_move=15, output_folder=Non
         test_arena: Arena number to test (1-9, only used in test mode)
         test_duration: Duration in seconds to process in test mode (default: 10)
         use_temp: If True, copy videos to local temp storage before processing (faster for network storage)
+        use_cuda: If True, use CUDA hardware acceleration (default: True)
+        show_progress: If True, show progress bars (default: True)
+        overwrite: If True, delete output folder and reprocess all videos (default: False)
     """
     experiment_folder = Path(experiment_folder)
     
@@ -457,19 +469,20 @@ def recombine_experiment(experiment_folder, pixels_to_move=15, output_folder=Non
     print(f"Output: {output_folder}")
     print(f"Pixels to move: {pixels_to_move}\n")
     
-    # Check if output folder exists
+    # Handle output folder
     if output_folder.exists():
-        if test_mode:
+        if test_mode or overwrite:
+            # In test mode or with --overwrite flag, remove existing output
+            print(f"Removing existing output folder...")
             shutil.rmtree(output_folder)
+            output_folder.mkdir(parents=True, exist_ok=True)
         else:
-            response = input(f"Output folder already exists. Overwrite? (y/n): ")
-            if response.lower() != 'y':
-                print("Aborted.")
-                return False
-            shutil.rmtree(output_folder)
-    
-    # Create output folder
-    output_folder.mkdir(parents=True, exist_ok=True)
+            # Default: keep existing output and only process missing videos
+            print(f"Output folder exists, will skip already-processed videos")
+            output_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        # Create new output folder
+        output_folder.mkdir(parents=True, exist_ok=True)
     
     # Copy metadata.json if it exists
     metadata_file = experiment_folder / "metadata.json"
@@ -630,6 +643,11 @@ def main():
         action="store_true",
         help="Disable progress bars (more reliable, less output)"
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Delete output folder and reprocess all videos (default: skip already-processed videos)"
+    )
     
     args = parser.parse_args()
     
@@ -643,7 +661,8 @@ def main():
         test_duration=args.test_duration,
         use_temp=args.use_temp,
         use_cuda=not args.no_cuda,
-        show_progress=not args.no_progress
+        show_progress=not args.no_progress,
+        overwrite=args.overwrite
     )
     
     if not success:

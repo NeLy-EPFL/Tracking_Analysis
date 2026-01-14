@@ -82,8 +82,9 @@ def verify_processed_folder(folder_path, output_folder=None, frame_number=0):
         output_folder = Path(output_folder)
         output_folder.mkdir(parents=True, exist_ok=True)
     
-    # Create visualization (3 rows x 9 columns: original arena + left + right for each)
-    fig, axs = plt.subplots(3, 9, figsize=(30, 10))
+    # Create visualization: 3 rows x 6 columns to match 3x3 physical layout
+    # Each arena gets 2 columns: Left, Right
+    fig, axs = plt.subplots(3, 6, figsize=(30, 15))
     
     # Track if we found any issues
     missing_videos = []
@@ -91,6 +92,10 @@ def verify_processed_folder(folder_path, output_folder=None, frame_number=0):
     for i in range(9):
         arena_num = i + 1
         arena_folder = folder / f"arena{arena_num}"
+        
+        # Calculate position in 3x3 grid
+        row = i // 3  # 0, 1, 2
+        col_offset = (i % 3) * 2  # 0, 2, 4 (each arena uses 2 columns)
         
         # Initialize placeholders
         left_frame = None
@@ -131,43 +136,23 @@ def verify_processed_folder(folder_path, output_folder=None, frame_number=0):
                 print(f"Warning: Right folder not found: {right_folder}")
                 missing_videos.append(f"arena{arena_num}/Right")
         
-        # Create a combined view in the first row (if both frames exist)
-        if left_frame is not None and right_frame is not None:
-            # Create a side-by-side view
-            # Note: right frame was rotated 180 in processing, so we rotate it back for display
-            right_frame_display = cv2.rotate(right_frame, cv2.ROTATE_180)
-            combined = cv2.hconcat([left_frame, right_frame_display])
-            axs[0, i].imshow(combined, cmap="gray", vmin=0, vmax=255)
-        elif left_frame is not None:
-            axs[0, i].imshow(left_frame, cmap="gray", vmin=0, vmax=255)
-        elif right_frame is not None:
-            right_frame_display = cv2.rotate(right_frame, cv2.ROTATE_180)
-            axs[0, i].imshow(right_frame_display, cmap="gray", vmin=0, vmax=255)
-        else:
-            # Show blank/error
-            axs[0, i].text(0.5, 0.5, 'MISSING', ha='center', va='center', 
-                          transform=axs[0, i].transAxes, fontsize=12, color='red')
-        
-        axs[0, i].set_title(f"Arena {arena_num}")
-        axs[0, i].axis("off")
-        
         # Show left half
         if left_frame is not None:
-            axs[1, i].imshow(left_frame, cmap="gray", vmin=0, vmax=255)
+            axs[row, col_offset].imshow(left_frame, cmap="gray", vmin=0, vmax=255)
         else:
-            axs[1, i].text(0.5, 0.5, 'MISSING', ha='center', va='center',
-                          transform=axs[1, i].transAxes, fontsize=10, color='red')
-        axs[1, i].set_title(f"Left {arena_num}")
-        axs[1, i].axis("off")
+            axs[row, col_offset].text(0.5, 0.5, 'MISSING', ha='center', va='center',
+                          transform=axs[row, col_offset].transAxes, fontsize=10, color='red')
+        axs[row, col_offset].set_title(f"Arena {arena_num} Left")
+        axs[row, col_offset].axis("off")
         
         # Show right half
         if right_frame is not None:
-            axs[2, i].imshow(right_frame, cmap="gray", vmin=0, vmax=255)
+            axs[row, col_offset + 1].imshow(right_frame, cmap="gray", vmin=0, vmax=255)
         else:
-            axs[2, i].text(0.5, 0.5, 'MISSING', ha='center', va='center',
-                          transform=axs[2, i].transAxes, fontsize=10, color='red')
-        axs[2, i].set_title(f"Right {arena_num}")
-        axs[2, i].axis("off")
+            axs[row, col_offset + 1].text(0.5, 0.5, 'MISSING', ha='center', va='center',
+                          transform=axs[row, col_offset + 1].transAxes, fontsize=10, color='red')
+        axs[row, col_offset + 1].set_title(f"Arena {arena_num} Right")
+        axs[row, col_offset + 1].axis("off")
     
     plt.tight_layout()
     output_file = output_folder / "verification_check.png"
@@ -265,7 +250,8 @@ def main():
         description="Verify already processed experiments by checking video crops"
     )
     parser.add_argument(
-        "--folder", "-f", 
+        "folder",
+        nargs="?",
         type=str, 
         help="Specific _Cropped folder to verify"
     )
