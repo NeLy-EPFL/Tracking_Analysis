@@ -415,21 +415,61 @@ def process_folder(in_folder):
         orientations.append(orientation)
         print(f"Arena {i+1} orientation: {orientation}")
 
-    # Create visualization of detected arenas (3x3 grid like Array2Arenas)
-    fig, axs = plt.subplots(3, 3, figsize=(20, 20))
+    # Create visualization of detected arenas with split preview (3 rows x 9 columns)
+    fig, axs = plt.subplots(3, 9, figsize=(30, 10))  # 3 rows, 9 columns (arena + left + right for each)
+    
     for i in range(9):
-        axs[i // 3, i % 3].axis("off")
+        # Show original arena
         arena_crop = frame[
             regions_of_interest[i][1] : regions_of_interest[i][3],
             regions_of_interest[i][0] : regions_of_interest[i][2],
         ]
-        axs[i // 3, i % 3].imshow(arena_crop, cmap="gray", vmin=0, vmax=255)
-        axs[i // 3, i % 3].set_title(f"Arena {i+1} ({orientations[i]})")
+        axs[0, i].imshow(arena_crop, cmap="gray", vmin=0, vmax=255)
+        axs[0, i].set_title(f"Arena {i+1} ({orientations[i]})")
+        axs[0, i].axis("off")
+        
+        # Process the arena to show left and right splits
+        x1, y1, x2, y2 = regions_of_interest[i]
+        width = x2 - x1
+        height = y2 - y1
 
-    # Remove the axis of each subplot and draw them closer together
-    for ax in axs.flat:
-        ax.axis("off")
-    plt.subplots_adjust(wspace=0, hspace=0)
+        # Adjust the width and height to be multiples of 2
+        if width % 2 != 0:
+            width -= 1
+        if height % 2 != 0:
+            height -= 1
+
+        arena_image = frame[y1 : y1 + height, x1 : x1 + width]
+        
+        # Apply rotation if the orientation is "hz" (horizontal)
+        if orientations[i] == "hz":
+            arena_image = cv2.rotate(arena_image, cv2.ROTATE_90_CLOCKWISE)
+        
+        # Split the arena into left and right halves
+        arena_height, arena_width = arena_image.shape
+        half_width = arena_width // 2
+        
+        # Ensure half_width is even
+        if half_width % 2 != 0:
+            half_width -= 1
+            
+        left_half = arena_image[:, :half_width]
+        right_half = arena_image[:, arena_width - half_width:]
+        
+        # Rotate the right half 180 degrees
+        right_half_rotated = cv2.rotate(right_half, cv2.ROTATE_180)
+        
+        # Show left half
+        axs[1, i].imshow(left_half, cmap="gray", vmin=0, vmax=255)
+        axs[1, i].set_title(f"Left {i+1}")
+        axs[1, i].axis("off")
+        
+        # Show right half (rotated)
+        axs[2, i].imshow(right_half_rotated, cmap="gray", vmin=0, vmax=255)
+        axs[2, i].set_title(f"Right {i+1}")
+        axs[2, i].axis("off")
+
+    plt.tight_layout()
     plt.savefig(
         str(processedfolder.joinpath("crop_check.png")), dpi=300, bbox_inches="tight"
     )
