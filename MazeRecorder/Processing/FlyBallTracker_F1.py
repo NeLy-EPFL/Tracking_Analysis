@@ -116,12 +116,12 @@ def check_tracking_files(video_path: Path) -> Dict[str, Dict[str, bool]]:
 
 def scan_directory(directory: Path, status: TrackingStatus, verbose: bool = False):
     """Scan a directory for videos and check their tracking status."""
-    # Only process _Checked directories
-    if "_Checked" not in directory.name:
+    # Only process directories with _Checked in the path
+    if "_Checked" not in str(directory):
         return
     
     if verbose:
-        print(f"Scanning directory: {directory.name}")
+        print(f"Scanning directory: {directory}")
     
     # Find all videos
     videos = list(directory.glob("*.mp4"))
@@ -405,11 +405,24 @@ def main():
         print("No directories to process")
         sys.exit(1)
     
+    # Recursively find all subdirectories, just like the bash script
+    # This matches: subdirs=($(find "$datafolder" -type d))
+    all_subdirs = []
+    for directory in directories:
+        if directory.is_dir():
+            # Add the directory itself
+            all_subdirs.append(directory)
+            # Add all subdirectories recursively
+            all_subdirs.extend([d for d in directory.rglob("*") if d.is_dir()])
+    
+    if args.verbose:
+        print(f"\nFound {len(all_subdirs)} total subdirectories to scan")
+    
     # Scan all directories
     status = TrackingStatus()
     
     print("\nScanning directories...")
-    for directory in sorted(directories):
+    for directory in sorted(all_subdirs):
         scan_directory(directory, status, args.verbose)
     
     # Print summary
